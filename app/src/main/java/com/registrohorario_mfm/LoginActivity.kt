@@ -1,8 +1,13 @@
 package com.registrohorario_mfm
 
+import android.app.AlertDialog // AlertDialog clásico de Android (no Compose)
+import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,6 +29,10 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+
+// --- IMPORTACIONES CLAVE DE FIREBASE QUE FALTABAN ---
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.DocumentSnapshot
 
 // Paleta unificada coherente con Admin y Colaborador
 private val LoginFondoGrisClaro = Color(0xFFF5F5F5)
@@ -70,6 +79,8 @@ class LoginActivity : ComponentActivity() {
                 )
             }
         }
+
+        verificarActualizacionFirebase(this)
     }
 }
 
@@ -97,9 +108,6 @@ fun LoginScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // --- LOGO CENTRADO ARRIBA ---
-        // Asegúrate de tener tu imagen en res/drawable con el nombre "logo_mfm"
-        // Si tu archivo se llama diferente, cambia R.drawable.logo_mfm por el correcto.
         Image(
             painter = painterResource(id = R.drawable.logo_mfm),
             contentDescription = "Logo MFM",
@@ -120,10 +128,9 @@ fun LoginScreen(
             value = email,
             onValueChange = { email = it },
             label = { Text("Correo electrónico") },
-            // NUEVO: Optimiza el teclado para correos electrónicos
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Email,
-                imeAction = ImeAction.Next // Cambia la tecla a "Siguiente" para saltar a la contraseña
+                imeAction = ImeAction.Next
             ),
             colors = loginTextFieldColors(),
             shape = RoundedCornerShape(8.dp),
@@ -137,10 +144,9 @@ fun LoginScreen(
             onValueChange = { password = it },
             label = { Text("Contraseña") },
             visualTransformation = PasswordVisualTransformation(),
-            // NUEVO: Esto le dice al teclado que es un campo de contraseña
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Password,
-                imeAction = ImeAction.Done // Cambia la tecla del teclado a "Hecho" o "Check"
+                imeAction = ImeAction.Done
             ),
             colors = loginTextFieldColors(),
             shape = RoundedCornerShape(8.dp),
@@ -149,7 +155,6 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Casilla de verificación para Recordar Credenciales
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -207,5 +212,75 @@ fun LoginScreen(
                 Text("Iniciar Sesión", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
+    }
+}
+
+fun verificarActualizacionFirebase(context: Context) {
+    val db = FirebaseFirestore.getInstance()
+
+    db.collection("CONFIG_APP").document("actualizacion").get()
+        .addOnSuccessListener { document: DocumentSnapshot ->
+            if (document.exists()) {
+                val versionCodeRemoto = document.getLong("versionCode")?.toInt() ?: 1
+                val urlApk = document.getString("urlApk") ?: ""
+                val mensaje = document.getString("mensaje") ?: "Actualización disponible"
+
+                val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                val versionCodeActual = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    pInfo.longVersionCode.toInt()
+                } else {
+                    pInfo.versionCode
+                }
+
+                Toast.makeText(context, "Remoto: $versionCodeRemoto | Actual: $versionCodeActual", Toast.LENGTH_SHORT).show()
+
+                if (versionCodeRemoto > versionCodeActual && urlApk.isNotEmpty()) {
+                    mostrarDialogoActualizacion(context, mensaje, urlApk)
+                }
+            }
+        }
+        .addOnFailureListener { e: Exception ->
+            Toast.makeText(context, "Error Firestore: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+}
+
+private fun mostrarDialogoActualizacion(context: Context, mensaje: String, urlApk: String) {
+    AlertDialog.Builder(context)
+        .setTitle("¡Actualización disponible!")
+        .setMessage(mensaje)
+        .setCancelable(false)
+        .setPositiveButton("Actualizar") { _, _ ->
+            descargarEInstalarApk(context, urlApk)
+        }
+        .setNegativeButton("Más tarde", null)
+        .show()
+}
+
+private fun descargarEInstalarApk(context: Context, urlApk: String) {
+    Toast.makeText(context, "Iniciando descarga...", Toast.LENGTH_SHORT).show()
+
+    try {
+        val request = DownloadManager.Request(Uri.parse(urlApk)).apply {
+            setTitle("Actualización MFM")
+            setDescription("Descargando nueva versión...")
+            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+
+            // Usar la ruta pública de descargas con un nombre limpio
+            setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "registro_horario_update.apk")
+
+            // Permitir descarga en cualquier red (datos o Wi-Fi)
+            setAllowedOverMetered(true)
+            setAllowedOverRoaming(true)
+
+            // Permitir que aparezca en las descargas del sistema
+            allowScanningByMediaScanner()
+        }
+
+        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        manager.enqueue(request)
+
+        Toast.makeText(context, "La descarga continúa en la barra de notificaciones", Toast.LENGTH_LONG).show()
+    } catch (e: Exception) {
+        Toast.makeText(context, "Error al iniciar descarga: ${e.message}", Toast.LENGTH_LONG).show()
     }
 }
