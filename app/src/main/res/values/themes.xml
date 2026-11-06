@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.RegistroHorarioMFM" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Permitir que la barra de estado superior del sistema sea visible -->
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
+</resources>

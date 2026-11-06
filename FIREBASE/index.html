@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro Horario MFM - Web</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body class="bg-[#F5F5F5] text-[#212121] font-sans antialiased min-h-screen flex flex-col relative">
+
+    <!-- OVERLAY DE CARGA GLOBAL -->
+    <div id="loading-overlay" class="fixed inset-0 bg-black/50 hidden flex flex-col items-center justify-center z-[100]">
+        <div class="bg-white p-6 rounded-xl shadow-lg flex items-center space-x-4">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1976D2]"></div>
+            <span class="text-lg font-bold text-[#1976D2]">Cargando datos...</span>
+        </div>
+    </div>
+
+    <!-- CONTENEDOR DE LA APP -->
+    <div id="app" class="max-w-2xl mx-auto w-full flex-1 flex flex-col p-4">
+        
+        <!-- ================= VISTA LOGIN ================= -->
+        <div id="view-login" class="my-auto bg-white p-8 rounded-xl shadow-sm border border-gray-100 max-w-md mx-auto w-full">
+            <h1 class="text-2xl font-bold text-center text-[#1976D2] mb-6">Registro Horario MFM</h1>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Correo electrónico</label>
+                    <input type="email" id="login-email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#1976D2]">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-600 mb-1">Contraseña</label>
+                    <input type="password" id="login-pass" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#1976D2]">
+                </div>
+                <button id="btn-login" onclick="ejecutarLogin()" class="w-full bg-[#1976D2] text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 transition flex justify-center items-center">
+                    <span>Iniciar Sesión</span>
+                </button>
+                <p id="login-error" class="text-red-500 text-sm text-center hidden"></p>
+            </div>
+        </div>
+
+        <!-- ================= PANEL ADMINISTRADOR ================= -->
+        <div id="view-admin" class="hidden flex-1 flex flex-col">
+            <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
+                <h2 class="font-bold text-lg text-[#212121]">Panel de Administrador</h2>
+                <div class="flex items-center gap-3">
+                    <button onclick="recargarDatosAdminManual()" class="bg-blue-50 text-[#1976D2] hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition" title="Actualizar datos">
+                        🔄 Actualizar
+                    </button>
+                    <button onclick="cerrarSesion()" class="text-red-600 text-sm font-semibold">Cerrar Sesión</button>
+                </div>
+            </div>
+
+            <!-- Pestañas (Tabs) -->
+            <div class="flex bg-white rounded-xl shadow-sm border border-gray-100 mb-4 overflow-hidden">
+                <button onclick="cambiarTabAdmin('admin')" id="tab-btn-admin" class="flex-1 py-3 text-center font-bold text-sm text-[#1976D2] border-b-2 border-[#1976D2]">ADMIN</button>
+                <button onclick="cambiarTabAdmin('colaboradores')" id="tab-btn-colab" class="flex-1 py-3 text-center font-medium text-sm text-gray-500">COLABORADORES</button>
+                <button onclick="cambiarTabAdmin('registros')" id="tab-btn-regs" class="flex-1 py-3 text-center font-medium text-sm text-gray-500">REGISTRO</button>
+            </div>
+
+            <div id="admin-content-area" class="flex-1 pb-20"></div>
+
+            <button onclick="accionBotonFlotanteAdmin()" class="fixed bottom-6 right-6 bg-[#42A5F5] text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-3xl font-bold hover:bg-blue-600 transition z-40">
+                +
+            </button>
+        </div>
+
+        <!-- ================= PANEL COLABORADOR ================= -->
+        <div id="view-colaborador" class="hidden flex-1 flex flex-col">
+            <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
+                <div>
+                    <p class="text-xs text-gray-500">Colaborador</p>
+                    <h2 id="colab-nombre-user" class="font-bold text-lg text-[#212121]">Cargando...</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="recargarDatosColaboradorManual()" class="bg-blue-50 text-[#1976D2] hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition" title="Actualizar datos">
+                        🔄 Actualizar
+                    </button>
+                    <button onclick="cerrarSesion()" class="text-red-600 text-sm font-semibold">Cerrar Sesión</button>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-md text-[#212121]">Mis Registros</h3>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500 font-medium">Semana:</span>
+                    <select id="colab-select-semana" onchange="cambiarSemanaColab(this.value)" class="px-3 py-1.5 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:border-[#1976D2]"></select>
+                </div>
+            </div>
+
+            <div id="colab-lista-registros" class="space-y-3 flex-1 overflow-y-auto pb-20"></div>
+
+            <button onclick="abrirModalNuevoRegistroColab()" class="fixed bottom-6 right-6 bg-[#42A5F5] text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-3xl font-bold hover:bg-blue-600 transition z-40">
+                +
+            </button>
+        </div>
+
+    </div>
+
+    <!-- MODAL GENÉRICO -->
+    <div id="modal-global" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white w-full max-w-sm rounded-xl p-6 shadow-lg max-h-[90vh] overflow-y-auto" id="modal-content-box"></div>
+    </div>
+
+    <!-- SCRIPTS FIREBASE WEB -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, getDocs, addDoc, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAejeY-It7IBcTaHh4BxeJG2BmwqGRRxXs",
+            authDomain: "registrohorario-mfm.firebaseapp.com",
+            projectId: "registrohorario-mfm",
+            storageBucket: "registrohorario-mfm.firebasestorage.app",
+            messagingSenderId: "724186338370",
+            appId: "1:724186338370:web:51d011588abcd7680c09db",
+            measurementId: "G-S137NN7WTV"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let usuarioActualGlobal = null;
+        let tabAdminActual = 'admin';
+        let semanaSeleccionadaAdmin = null;
+        
+        let cacheAsistenciasAdmin = [];
+        let cacheAdminsAdmin = [];
+        let cacheColaboradoresAdmin = [];
+        let cacheTodosUsuarios = [];
+
+        let cacheRegistrosColaborador = [];
+        let semanaSeleccionadaColab = null;
+
+        function mostrarCargador(mostrar) {
+            const overlay = document.getElementById('loading-overlay');
+            if (mostrar) overlay.classList.remove('hidden');
+            else overlay.classList.add('hidden');
+        }
+
+        window.setButtonLoading = function(btnOrId, isLoading, text) {
+            const btn = typeof btnOrId === 'string' ? document.getElementById(btnOrId) : btnOrId;
+            if (!btn) return;
+            
+            if (isLoading) {
+                if (!btn.dataset.originalText) {
+                    btn.dataset.originalText = btn.innerHTML;
+                }
+                btn.disabled = true;
+                btn.innerHTML = `
+                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" style="color: currentColor;">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>${text}</span>
+                `;
+                btn.classList.add('opacity-75', 'cursor-not-allowed');
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalText || `<span>${text}</span>`;
+                btn.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        }
+
+        window.obtenerFechaLocalFormateada = function() {
+            const d = new Date();
+            const dia = String(d.getDate()).padStart(2, '0');
+            const mes = String(d.getMonth() + 1).padStart(2, '0');
+            const anio = d.getFullYear();
+            return `${dia}/${mes}/${anio}`;
+        }
+
+        window.obtenerFechaAyerFormateada = function() {
+            const d = new Date();
+            d.setDate(d.getDate() - 1);
+            const dia = String(d.getDate()).padStart(2, '0');
+            const mes = String(d.getMonth() + 1).padStart(2, '0');
+            const anio = d.getFullYear();
+            return `${dia}/${mes}/${anio}`;
+        }
+
+        window.formatoParaFirebase = function(fechaInput) {
+            if (!fechaInput || !fechaInput.includes('-')) return fechaInput;
+            const partes = fechaInput.split('-');
+            return `${partes[2]}/${partes[1]}/${partes[0]}`;
+        }
+
+        function calcularNumeroSemanaWeb(fechaStr) {
+            try {
+                const partes = fechaStr.split('/');
+                if (partes.length !== 3) return 1;
+                const fechaTarget = Date.UTC(partes[2], partes[1] - 1, partes[0]);
+                const fechaBase = Date.UTC(2026, 0, 4);
+                const diffMillis = fechaTarget - fechaBase;
+                const diffDays = Math.floor(diffMillis / (1000 * 60 * 60 * 24));
+                if (diffDays < 0) return 1;
+                return Math.floor(diffDays / 7) + 1;
+            } catch (e) {
+                return 1;
+            }
+        }
+
+        window.generarSiguienteCodigo = function(lista, prefijo) {
+            let maxNumero = 0;
+            lista.forEach(user => {
+                const cod = (user.codigoColaborador || user.codColaborador || user.codigo || "").toUpperCase();
+                if (cod.startsWith(prefijo)) {
+                    const numStr = cod.substring(prefijo.length);
+                    const num = parseInt(numStr, 10);
+                    if (!isNaN(num) && num > maxNumero) {
+                        maxNumero = num;
+                    }
+                }
+            });
+            const siguiente = maxNumero + 1;
+            return prefijo + siguiente.toString().padStart(3, '0');
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                document.getElementById('view-login').classList.add('hidden');
+                await determinarRolYCargarVista(user);
+            } else {
+                document.getElementById('view-login').classList.remove('hidden');
+                document.getElementById('view-admin').classList.add('hidden');
+                document.getElementById('view-colaborador').classList.add('hidden');
+
+                setButtonLoading('btn-login', false, 'Iniciar Sesión');
+                document.getElementById('login-email').value = '';
+                document.getElementById('login-pass').value = '';
+                document.getElementById('login-error').classList.add('hidden');
+            }
+        });
+
+        window.ejecutarLogin = async function() {
+            const email = document.getElementById('login-email').value.trim();
+            const pass = document.getElementById('login-pass').value.trim();
+            const errEl = document.getElementById('login-error');
+            try {
+                errEl.classList.add('hidden');
+                setButtonLoading('btn-login', true, 'Iniciando...');
+                await signInWithEmailAndPassword(auth, email, pass);
+            } catch (e) {
+                errEl.innerText = "Error: " + e.message;
+                errEl.classList.remove('hidden');
+                setButtonLoading('btn-login', false, 'Iniciar Sesión');
+            }
+        }
+
+        window.cerrarSesion = async function() {
+            await signOut(auth);
+        }
+
+        async function determinarRolYCargarVista(user) {
+            const usuariosSnap = await getDocs(collection(db, "USUARIOS"));
+            let rolEncontrado = "COLABORADOR";
+            let datosColab = null;
+
+            usuariosSnap.forEach(docSnap => {
+                const data = docSnap.data();
+                if (docSnap.id === user.uid || data.correo === user.email || data.email === user.email) {
+                    rolEncontrado = (data.rol || "COLABORADOR").toUpperCase();
+                    datosColab = { id: docSnap.id, ...data };
+                }
+            });
+
+            usuarioActualGlobal = datosColab;
+
+            if (rolEncontrado === "ADMIN") {
+                document.getElementById('view-admin').classList.remove('hidden');
+                cargarDatosAdmin();
+            } else {
+                document.getElementById('view-colaborador').classList.remove('hidden');
+                cargarDatosColaboradorWeb(datosColab);
+            }
+        }
+
+        window.cambiarTabAdmin = function(tab) {
+            tabAdminActual = tab;
+            document.getElementById('tab-btn-admin').className = tab === 'admin' ? 'flex-1 py-3 text-center font-bold text-sm text-[#1976D2] border-b-2 border-[#1976D2]' : 'flex-1 py-3 text-center font-medium text-sm text-gray-500';
+            document.getElementById('tab-btn-colab').className = tab === 'colaboradores' ? 'flex-1 py-3 text-center font-bold text-sm text-[#1976D2] border-b-2 border-[#1976D2]' : 'flex-1 py-3 text-center font-medium text-sm text-gray-500';
+            document.getElementById('tab-btn-regs').className = tab === 'registros' ? 'flex-1 py-3 text-center font-bold text-sm text-[#1976D2] border-b-2 border-[#1976D2]' : 'flex-1 py-3 text-center font-medium text-sm text-gray-500';
+            cargarDatosAdmin();
+        }
+
+        window.recargarDatosAdminManual = async function() {
+            mostrarCargador(true);
+            await cargarDatosAdmin();
+            mostrarCargador(false);
+        }
+
+        async function cargarDatosAdmin() {
+            const area = document.getElementById('admin-content-area');
+            area.innerHTML = '<p class="text-center text-gray-400 py-8">Cargando...</p>';
+
+            const usuariosSnap = await getDocs(collection(db, "USUARIOS"));
+            const asistenciaSnap = await getDocs(collection(db, "REGISTROS_ASISTENCIA"));
+
+            let admins = [];
+            let colaboradores = [];
+            let todos = [];
+            let asistencias = [];
+
+            usuariosSnap.forEach(d => {
+                const item = { id: d.id, ...d.data() };
+                todos.push(item);
+                if ((item.rol || "").toUpperCase() === "ADMIN") admins.push(item);
+                else colaboradores.push(item);
+            });
+
+            asistenciaSnap.forEach(d => {
+                const regData = d.data();
+                if (regData.estado !== "ANULADO") {
+                    asistencias.push({ idDoc: d.id, ...regData });
+                }
+            });
+
+            cacheAsistenciasAdmin = asistencias;
+            cacheAdminsAdmin = admins;
+            cacheColaboradoresAdmin = colaboradores;
+            cacheTodosUsuarios = todos;
+
+            if (tabAdminActual === 'admin') {
+                area.innerHTML = admins.map(a => renderItemPersona(a)).join('') || '<p class="text-center text-gray-400">No hay administradores.</p>';
+            } else if (tabAdminActual === 'colaboradores') {
+                area.innerHTML = colaboradores.map(c => renderItemPersona(c)).join('') || '<p class="text-center text-gray-400">No hay colaboradores.</p>';
+            } else if (tabAdminActual === 'registros') {
+                const semanasSet = new Set();
+                asistencias.forEach(a => {
+                    if(a.fecha) semanasSet.add(calcularNumeroSemanaWeb(a.fecha));
+                });
+                const semanasDisponibles = Array.from(semanasSet).sort((a,b) => a - b);
+                
+                const semanaActualGlobal = calcularNumeroSemanaWeb(new Date().toLocaleDateString('es-PE'));
+                if(!semanaSeleccionadaAdmin || !semanasDisponibles.includes(semanaSeleccionadaAdmin)) {
+                    semanaSeleccionadaAdmin = semanasDisponibles.length > 0 ? semanasDisponibles[semanasDisponibles.length - 1] : semanaActualGlobal;
+                }
+
+                area.innerHTML = `
+                    <div class="mb-4 flex items-center justify-between">
+                        <span class="text-sm font-medium text-gray-700">Filtrar por Semana:</span>
+                        <select onchange="cambiarSemanaAdmin(this.value)" class="px-3 py-1.5 border rounded-lg bg-white text-sm focus:outline-none focus:border-[#1976D2]">
+                            ${semanasDisponibles.length === 0 ? `<option value="${semanaActualGlobal}">Semana ${semanaActualGlobal}</option>` : ''}
+                            ${semanasDisponibles.map(sem => `<option value="${sem}" ${sem === semanaSeleccionadaAdmin ? 'selected' : ''}>Semana ${sem}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="space-y-3" id="acordeon-registros">
+                        ${generarAcordeonRegistros(todos, asistencias, semanaSeleccionadaAdmin)}
+                    </div>
+                `;
+            }
+        }
+
+        function renderItemPersona(p) {
+            const nombre = p.nombres || p.nombre || p.nombresCompletos || "";
+            const apellidos = p.apellidos || "";
+            const nombreCompleto = (nombre + " " + apellidos).trim();
+            const codigo = p.codigoColaborador || p.codColaborador || p.codigo || 'S/C';
+
+            return `
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3 flex justify-between items-center">
+                    <div>
+                        <p class="text-xs font-bold text-gray-500">${codigo}</p>
+                        <h4 class="font-bold text-md text-[#212121]">${nombreCompleto || 'Sin Nombre'}</h4>
+                        <p class="text-xs text-gray-500">${p.cargo || 'Sin cargo'}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs bg-blue-50 text-[#1976D2] px-2.5 py-1 rounded font-medium">${p.rol || 'COLABORADOR'}</span>
+                        <button onclick="abrirModalEditarUsuarioPorId('${p.id}')" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1.5 rounded font-semibold flex items-center justify-center">Editar</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function generarAcordeonRegistros(todosUser, asistencias, semanaFiltro) {
+            const regsFiltradas = asistencias.filter(a => calcularNumeroSemanaWeb(a.fecha) === semanaFiltro);
+            if(regsFiltradas.length === 0) {
+                return `<p class="text-center text-gray-400 py-8">No hay registros para la Semana ${semanaFiltro}.</p>`;
+            }
+            return todosUser.map(c => {
+                const cod = c.codigoColaborador || c.codColaborador || c.codigo;
+                const regsColab = regsFiltradas.filter(a => a.codigoColaborador === cod);
+                if(regsColab.length === 0) return '';
+                const nombre = (c.nombres || c.nombre || "") + " " + (c.apellidos || "");
+
+                return `
+                    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                        <div onclick="toggleAcordeon('${cod}')" class="bg-gray-100 p-4 font-bold text-sm flex justify-between items-center cursor-pointer hover:bg-gray-200 transition">
+                            <span>${nombre.trim()} (${regsColab.length} registros)</span>
+                            <span class="text-gray-500 text-xs">▼</span>
+                        </div>
+                        <div id="acc-${cod}" class="hidden divide-y divide-gray-100">
+                            ${regsColab.map(r => `
+                                <div class="p-3.5 flex justify-between items-center text-sm">
+                                    <div>
+                                        <p class="font-bold text-[#212121]">${r.fecha} - <span class="text-gray-500 font-normal">${r.turno}</span></p>
+                                        <p class="text-xs text-gray-500 mt-0.5">Entrada: ${r.horaEntrada} | Salida: ${r.horaSalida || 'En curso'}</p>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs text-[#1976D2] font-semibold bg-blue-50 px-2 py-1 rounded">${r.estado}</span>
+                                        <button onclick='abrirModalEditarAdmin(${JSON.stringify(r)})' class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded font-semibold flex items-center justify-center">Editar</button>
+                                        <button onclick="abrirModalEliminarWeb('${r.idDoc}', '${r.codigoColaborador}', '${r.fecha}', '${r.turno}', '${r.horaEntrada}', '${r.horaSalida}')" class="text-xs bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1 rounded font-semibold flex items-center justify-center">Eliminar</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.toggleAcordeon = function(cod) {
+            const el = document.getElementById(`acc-${cod}`);
+            if(el) el.classList.toggle('hidden');
+        }
+
+        window.cambiarSemanaAdmin = function(sem) {
+            semanaSeleccionadaAdmin = parseInt(sem);
+            const area = document.getElementById('acordeon-registros');
+            if(area) {
+                area.innerHTML = generarAcordeonRegistros(cacheTodosUsuarios, cacheAsistenciasAdmin, semanaSeleccionadaAdmin);
+            }
+        }
+
+        window.accionBotonFlotanteAdmin = function() {
+            if (tabAdminActual === 'admin') {
+                const siguienteCod = generarSiguienteCodigo(cacheAdminsAdmin, 'ADMIN-');
+                abrirModalNuevoUsuarioRol('ADMIN', siguienteCod);
+            } else if (tabAdminActual === 'colaboradores') {
+                const siguienteCod = generarSiguienteCodigo(cacheColaboradoresAdmin, 'COL-');
+                abrirModalNuevoUsuarioRol('COLABORADOR', siguienteCod);
+            } else if (tabAdminActual === 'registros') {
+                abrirModalNuevoRegistroAdmin();
+            }
+        }
+
+        window.abrirModalNuevoUsuarioRol = function(rol, codGenerado) {
+            const titulo = rol === 'ADMIN' ? 'Agregar Nuevo Admin' : 'Agregar Nuevo Colaborador';
+            const box = document.getElementById('modal-content-box');
+            box.innerHTML = `
+                <h3 class="text-lg font-bold mb-3 text-[#1976D2]">${titulo}</h3>
+                <p class="text-sm font-bold text-[#212121] mb-4 bg-gray-100 py-2 px-3 rounded-lg border border-gray-200">
+                    Código Asignado: <span class="text-[#1976D2]">${codGenerado}</span>
+                </p>
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Nombres</label>
+                            <input type="text" id="nu-nombres" class="w-full px-3 py-2 border rounded-lg text-sm uppercase">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Apellidos</label>
+                            <input type="text" id="nu-apellidos" class="w-full px-3 py-2 border rounded-lg text-sm uppercase">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">DNI</label>
+                            <input type="text" id="nu-dni" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Cargo</label>
+                            <input type="text" id="nu-cargo" class="w-full px-3 py-2 border rounded-lg text-sm uppercase">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Correo electrónico</label>
+                        <input type="email" id="nu-correo" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Jornal Día (S/)</label>
+                            <input type="number" id="nu-jdia" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Jornal Noche (S/)</label>
+                            <input type="number" id="nu-jnoche" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Horas Extras (S/)</label>
+                        <input type="number" id="nu-hextras" value="0" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Cuenta BCP / CCI</label>
+                        <input type="text" id="nu-bcp" class="w-full px-3 py-2 border rounded-lg text-sm uppercase">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Cuenta Interbank</label>
+                            <input type="text" id="nu-ibk" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Yape / Plin</label>
+                            <input type="text" id="nu-yape" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <p id="nu-error" class="text-red-500 text-xs hidden font-medium mt-1"></p>
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="cerrarModalWeb()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-bold">Cancelar</button>
+                        <button onclick="guardarNuevoUsuarioRol('${rol}', '${codGenerado}')" id="btn-nu-save" class="flex-1 bg-[#1976D2] text-white py-2 rounded-lg text-sm font-bold flex justify-center items-center">
+                            <span>Guardar</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-global').classList.remove('hidden');
+        }
+
+        window.guardarNuevoUsuarioRol = async function(rol, codGenerado) {
+            const errEl = document.getElementById('nu-error');
+            const nombres = document.getElementById('nu-nombres').value.trim().toUpperCase();
+            const apellidos = document.getElementById('nu-apellidos').value.trim().toUpperCase();
+            const dni = document.getElementById('nu-dni').value.trim();
+            const cargo = document.getElementById('nu-cargo').value.trim().toUpperCase();
+            const correo = document.getElementById('nu-correo').value.trim();
+            
+            const jDia = parseFloat(document.getElementById('nu-jdia').value) || 0;
+            const jNoche = parseFloat(document.getElementById('nu-jnoche').value) || 0;
+            const hExtras = parseFloat(document.getElementById('nu-hextras').value) || 0;
+            
+            const bancoCredito = document.getElementById('nu-bcp').value.trim().toUpperCase();
+            const interbank = document.getElementById('nu-ibk').value.trim();
+            const yapePlin = document.getElementById('nu-yape').value.trim();
+
+            if (!nombres || !correo) {
+                errEl.innerText = "Complete los campos obligatorios (Nombres y Correo).";
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            errEl.classList.add('hidden');
+            setButtonLoading('btn-nu-save', true, 'Guardando...');
+
+            try {
+                const data = {
+                    codigoColaborador: codGenerado,
+                    nombres: nombres,
+                    apellidos: apellidos,
+                    dni: dni,
+                    cargo: cargo,
+                    correo: correo,
+                    rol: rol,
+                    estado: true,
+                    jornalDia: jDia,
+                    jornalNoche: jNoche,
+                    horasExtras: hExtras,
+                    bancoCredito: bancoCredito,
+                    interbank: interbank,
+                    yapePlin: yapePlin
+                };
+
+                await addDoc(collection(db, "COLABORADORES"), data);
+                await addDoc(collection(db, "USUARIOS"), data);
+
+                cerrarModalWeb();
+                cargarDatosAdmin();
+            } catch (e) {
+                errEl.innerText = "Error: " + e.message;
+                errEl.classList.remove('hidden');
+                setButtonLoading('btn-nu-save', false, 'Guardar');
+            }
+        }
+
+        window.abrirModalEditarUsuarioPorId = function(idDoc) {
+            const u = cacheTodosUsuarios.find(item => item.id === idDoc);
+            if (!u) {
+                alert("No se encontraron los datos del usuario.");
+                return;
+            }
+            abrirModalEditarUsuario(u);
+        }
+
+        window.abrirModalEditarUsuario = function(u) {
+            console.log("DATOS RECIBIDOS EN EDICIÓN:", u); 
+            const box = document.getElementById('modal-content-box');
+            
+            const nombresVal = u.nombres || u.nombre || "";
+            const apellidosVal = u.apellidos || u.apellido || "";
+            const codigoVal = u.codigoColaborador || u.codColaborador || u.codigo || 'S/C';
+            const dniVal = u.dni || "";
+            const cargoVal = u.cargo || "";
+            const correoVal = u.correo || u.email || "";
+            
+            const jornalDiaVal = u.jornalDia !== undefined ? u.jornalDia : 0;
+            const jornalNocheVal = u.jornalNoche !== undefined ? u.jornalNoche : 0;
+            const horasExtrasVal = u.horasExtras !== undefined ? u.horasExtras : 0;
+            
+            const bancoCreditoVal = u.bancoCredito || "";
+            const interbankVal = u.interbank || "";
+            const yapePlinVal = u.yapePlin || "";
+
+            const nombreCompletoTitulo = `${nombresVal} ${apellidosVal}`.trim();
+
+            box.innerHTML = `
+                <h3 class="text-lg font-bold mb-3 text-[#1976D2]">Editar Personal: ${nombreCompletoTitulo}</h3>
+                <p class="text-sm font-bold text-[#212121] mb-4 bg-gray-100 py-2 px-3 rounded-lg border border-gray-200">
+                    Código: <span class="text-[#1976D2]">${codigoVal}</span>
+                </p>
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Nombres</label>
+                            <input type="text" id="edit-u-nombres" value="${nombresVal}" class="w-full px-3 py-2 border rounded-lg text-sm uppercase">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Apellidos</label>
+                            <input type="text" id="edit-u-apellidos" value="${apellidosVal}" class="w-full px-3 py-2 border rounded-lg text-sm uppercase">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">DNI</label>
+                            <input type="text" id="edit-u-dni" value="${dniVal}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Cargo</label>
+                            <input type="text" id="edit-u-cargo" value="${cargoVal}" class="w-full px-3 py-2 border rounded-lg text-sm uppercase">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Correo electrónico</label>
+                        <input type="email" id="edit-u-correo" value="${correoVal}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Jornal Día (S/)</label>
+                            <input type="number" id="edit-u-jdia" value="${jornalDiaVal}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Jornal Noche (S/)</label>
+                            <input type="number" id="edit-u-jnoche" value="${jornalNocheVal}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Horas Extras (S/)</label>
+                        <input type="number" id="edit-u-hextras" value="${horasExtrasVal}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Cuenta BCP / CCI</label>
+                        <input type="text" id="edit-u-bcp" value="${bancoCreditoVal}" class="w-full px-3 py-2 border rounded-lg text-sm uppercase">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Cuenta Interbank</label>
+                            <input type="text" id="edit-u-ibk" value="${interbankVal}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Yape / Plin</label>
+                            <input type="text" id="edit-u-yape" value="${yapePlinVal}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        </div>
+                    </div>
+                    <p id="edit-u-error" class="text-red-500 text-xs hidden font-medium mt-1"></p>
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="cerrarModalWeb()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-bold">Cancelar</button>
+                        <button onclick="actualizarUsuarioRol('${u.id}')" id="btn-edit-u-save" class="flex-1 bg-[#1976D2] text-white py-2 rounded-lg text-sm font-bold flex justify-center items-center">
+                            <span>Guardar Cambios</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-global').classList.remove('hidden');
+        }
+
+        window.actualizarUsuarioRol = async function(idDoc) {
+            const errEl = document.getElementById('edit-u-error');
+            const nombres = document.getElementById('edit-u-nombres').value.trim().toUpperCase();
+            const apellidos = document.getElementById('edit-u-apellidos').value.trim().toUpperCase();
+            const dni = document.getElementById('edit-u-dni').value.trim();
+            const cargo = document.getElementById('edit-u-cargo').value.trim().toUpperCase();
+            const correo = document.getElementById('edit-u-correo').value.trim();
+            
+            const jDia = parseFloat(document.getElementById('edit-u-jdia').value) || 0;
+            const jNoche = parseFloat(document.getElementById('edit-u-jnoche').value) || 0;
+            const hExtras = parseFloat(document.getElementById('edit-u-hextras').value) || 0;
+            
+            const bancoCredito = document.getElementById('edit-u-bcp').value.trim().toUpperCase();
+            const interbank = document.getElementById('edit-u-ibk').value.trim();
+            const yapePlin = document.getElementById('edit-u-yape').value.trim();
+
+            if (!nombres || !correo) {
+                errEl.innerText = "Complete los campos obligatorios (Nombres y Correo).";
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            errEl.classList.add('hidden');
+            setButtonLoading('btn-edit-u-save', true, 'Guardando...');
+
+            try {
+                const datosActualizados = {
+                    nombres: nombres,
+                    apellidos: apellidos,
+                    dni: dni,
+                    cargo: cargo,
+                    correo: correo,
+                    jornalDia: jDia,
+                    jornalNoche: jNoche,
+                    horasExtras: hExtras,
+                    bancoCredito: bancoCredito,
+                    interbank: interbank,
+                    yapePlin: yapePlin
+                };
+
+                await updateDoc(doc(db, "USUARIOS", idDoc), datosActualizados);
+                const colabDoc = cacheColaboradoresAdmin.find(c => c.id === idDoc || c.correo === correo);
+                if (colabDoc) {
+                    await updateDoc(doc(db, "COLABORADORES", colabDoc.id), datosActualizados);
+                }
+
+                cerrarModalWeb();
+                cargarDatosAdmin();
+            } catch (e) {
+                errEl.innerText = "Error: " + e.message;
+                errEl.classList.remove('hidden');
+                setButtonLoading('btn-edit-u-save', false, 'Guardar Cambios');
+            }
+        }
+
+        window.abrirModalNuevoRegistroAdmin = function() {
+            const box = document.getElementById('modal-content-box');
+            box.innerHTML = `
+                <h3 class="text-lg font-bold mb-4 text-[#1976D2]">Nuevo Registro (Admin)</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Seleccionar Colaborador / Usuario</label>
+                        <select id="admin-sel-colab" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                            <option value="" disabled selected>- Seleccionar -</option>        
+                            ${cacheTodosUsuarios.map(u => `<option value="${u.codigoColaborador || u.codColaborador}">${(u.nombres || u.nombre || '')} ${(u.apellidos || '')} (${u.codigoColaborador || u.codColaborador || 'S/C'})</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Fecha</label>
+                        <input type="date" id="admin-fecha" value="${new Date().toISOString().split('T')[0]}" class="w-full px-3 py-2 border rounded-lg text-sm bg-white text-gray-700">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Turno</label>
+                        <select id="admin-turno" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                            <option value="DIA">DÍA</option>
+                            <option value="NOCHE">NOCHE</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Entrada</label>
+                            <div class="flex items-center border rounded-lg overflow-hidden bg-white">
+                                <input type="text" id="admin-entrada" value="08:00" class="w-full px-2 py-2 text-sm focus:outline-none">
+                                <button type="button" onclick="toggleAmPm('admin-entrada-ampm')" id="admin-entrada-ampm" class="px-2 py-2 bg-gray-100 text-[#1976D2] font-bold text-xs border-l hover:bg-gray-200">AM</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Salida</label>
+                            <div class="flex items-center border rounded-lg overflow-hidden bg-white">
+                                <input type="text" id="admin-salida" value="06:00" class="w-full px-2 py-2 text-sm focus:outline-none">
+                                <button type="button" onclick="toggleAmPm('admin-salida-ampm')" id="admin-salida-ampm" class="px-2 py-2 bg-gray-100 text-[#1976D2] font-bold text-xs border-l hover:bg-gray-200">PM</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="cerrarModalWeb()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-bold">Cancelar</button>
+                        <button onclick="guardarRegistroAdminWeb()" id="btn-nra-save" class="flex-1 bg-[#1976D2] text-white py-2 rounded-lg text-sm font-bold flex justify-center items-center">
+                            <span>Guardar</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-global').classList.remove('hidden');
+        }
+
+        window.toggleAmPm = function(idBtn) {
+            const btn = document.getElementById(idBtn);
+            if (btn) {
+                btn.innerText = btn.innerText === 'AM' ? 'PM' : 'AM';
+            }
+        }
+
+        window.guardarRegistroAdminWeb = async function() {
+            const cod = document.getElementById('admin-sel-colab').value;
+            const fecha = formatoParaFirebase(document.getElementById('admin-fecha').value);
+            const turno = document.getElementById('admin-turno').value;
+            const horaEntrada = document.getElementById('admin-entrada').value.trim() + " " + document.getElementById('admin-entrada-ampm').innerText;
+            const horaSalida = document.getElementById('admin-salida').value.trim() + " " + document.getElementById('admin-salida-ampm').innerText;
+
+            setButtonLoading('btn-nra-save', true, 'Guardando...');
+
+            try {
+                const docRef = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
+                    codigoColaborador: cod,
+                    fecha: fecha,
+                    turno: turno,
+                    horaEntrada: horaEntrada,
+                    horaSalida: horaSalida,
+                    estado: "COMPLETO"
+                });
+
+                const colabObj = cacheTodosUsuarios.find(u => (u.codigoColaborador || u.codColaborador) === cod);
+                const nombreCompleto = colabObj ? `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim() : cod;
+
+                enviarRegistroASheet(nombreCompleto, fecha, turno, horaEntrada, horaSalida, docRef.id, "ACTIVO");
+
+                cerrarModalWeb();
+                cargarDatosAdmin();
+            } catch(e) {
+                alert("Error: " + e.message);
+                setButtonLoading('btn-nra-save', false, 'Guardar');
+            }
+        }
+
+        window.abrirModalEditarAdmin = function(r) {
+            const box = document.getElementById('modal-content-box');
+            const partesEntrada = r.horaEntrada ? r.horaEntrada.split(' ') : ["08:00", "AM"];
+            const partesSalida = r.horaSalida ? r.horaSalida.split(' ') : ["06:00", "PM"];
+
+            box.innerHTML = `
+                <h3 class="text-lg font-bold mb-4 text-[#1976D2]">Editar Registro (Admin)</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Fecha</label>
+                        <input type="date" id="edit-admin-fecha" value="${r.fecha.split('/').reverse().join('-')}" class="w-full px-3 py-2 border rounded-lg text-sm bg-white text-gray-700">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Turno</label>
+                        <select id="edit-admin-turno" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                            <option value="DIA" ${r.turno === 'DIA' ? 'selected' : ''}>DÍA</option>
+                            <option value="NOCHE" ${r.turno === 'NOCHE' ? 'selected' : ''}>NOCHE</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Entrada</label>
+                            <div class="flex items-center border rounded-lg overflow-hidden bg-white">
+                                <input type="text" id="edit-admin-entrada" value="${partesEntrada[0]}" class="w-full px-2 py-2 text-sm focus:outline-none">
+                                <button type="button" onclick="toggleAmPm('edit-ent-ampm')" id="edit-ent-ampm" class="px-2 py-2 bg-gray-100 text-[#1976D2] font-bold text-xs border-l hover:bg-gray-200">${partesEntrada[1] || 'AM'}</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Salida</label>
+                            <div class="flex items-center border rounded-lg overflow-hidden bg-white">
+                                <input type="text" id="edit-admin-salida" value="${partesSalida[0]}" class="w-full px-2 py-2 text-sm focus:outline-none">
+                                <button type="button" onclick="toggleAmPm('edit-sal-ampm')" id="edit-sal-ampm" class="px-2 py-2 bg-gray-100 text-[#1976D2] font-bold text-xs border-l hover:bg-gray-200">${partesSalida[1] || 'PM'}</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Estado</label>
+                        <input type="text" id="edit-admin-estado" value="${r.estado}" class="w-full px-3 py-2 border rounded-lg text-sm">
+                    </div>
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="cerrarModalWeb()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-bold">Cancelar</button>
+                        <button onclick="actualizarRegistroAdmin('${r.idDoc}', '${r.codigoColaborador}')" id="btn-era-save" class="flex-1 bg-[#1976D2] text-white py-2 rounded-lg text-sm font-bold flex justify-center items-center">
+                            <span>Actualizar</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-global').classList.remove('hidden');
+        }
+
+        window.actualizarRegistroAdmin = async function(idDoc, codColab) {
+            const fecha = formatoParaFirebase(document.getElementById('edit-admin-fecha').value);
+            const turno = document.getElementById('edit-admin-turno').value;
+            const horaEntrada = document.getElementById('edit-admin-entrada').value.trim() + " " + document.getElementById('edit-ent-ampm').innerText;
+            const horaSalida = document.getElementById('edit-admin-salida').value.trim() + " " + document.getElementById('edit-sal-ampm').innerText;
+            const estado = document.getElementById('edit-admin-estado').value;
+
+            setButtonLoading('btn-era-save', true, 'Actualizando...');
+            try {
+                await updateDoc(doc(db, "REGISTROS_ASISTENCIA", idDoc), {
+                    fecha: fecha,
+                    turno: turno,
+                    horaEntrada: horaEntrada,
+                    horaSalida: horaSalida,
+                    estado: estado
+                });
+
+                const colabObj = cacheTodosUsuarios.find(u => (u.codigoColaborador || u.codColaborador) === codColab);
+                const nombreCompleto = colabObj ? `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim() : codColab;
+
+                enviarRegistroASheet(nombreCompleto, fecha, turno, horaEntrada, horaSalida, idDoc, "ACTIVO");
+
+                cerrarModalWeb();
+                cargarDatosAdmin();
+            } catch(e) {
+                alert("Error al actualizar: " + e.message);
+                setButtonLoading('btn-era-save', false, 'Actualizar');
+            }
+        }
+
+        window.abrirModalEliminarWeb = function(idDoc, codColab, fecha, turno, horaEntrada, horaSalida) {
+            const box = document.getElementById('modal-content-box');
+            let mensajeAnulacion = `¿Estás seguro de que deseas anular el registro de la fecha <b>${fecha}</b>?`;
+            
+            if (usuarioActualGlobal && usuarioActualGlobal.rol === "ADMIN") {
+                const colabObj = cacheTodosUsuarios.find(u => (u.codigoColaborador || u.codColaborador) === codColab);
+                const nombreCompleto = colabObj ? `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim() : codColab;
+                mensajeAnulacion = `¿Estás seguro de que deseas anular el registro de <b>${nombreCompleto}</b> de la fecha <b>${fecha}</b>?`;
+            }
+
+            box.innerHTML = `
+                <h3 class="text-lg font-bold mb-2 text-[#212121]">Confirmar Anulación</h3>
+                <p class="text-sm text-gray-600 mb-6">${mensajeAnulacion}</p>
+                <div class="flex gap-2">
+                    <button onclick="cerrarModalWeb()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-bold hover:bg-gray-300 transition">Cancelar</button>
+                    <button onclick="ejecutarEliminarWeb('${idDoc}', '${codColab}', '${fecha}', '${turno}', '${horaEntrada}', '${horaSalida}')" id="btn-delete-confirm" class="flex-1 bg-red-600 text-white py-2 rounded-lg text-sm font-bold flex justify-center items-center hover:bg-red-700 transition">
+                        <span>Sí, Anular</span>
+                    </button>
+                </div>
+            `;
+            document.getElementById('modal-global').classList.remove('hidden');
+        }
+
+        window.ejecutarEliminarWeb = async function(idDoc, codColab, fecha, turno, horaEntrada, horaSalida) {
+            setButtonLoading('btn-delete-confirm', true, 'Anulando...');
+            try {
+                await updateDoc(doc(db, "REGISTROS_ASISTENCIA", idDoc), {
+                    estado: "ANULADO"
+                });
+
+                const colabObj = cacheTodosUsuarios.find(u => (u.codigoColaborador || u.codColaborador) === codColab) || usuarioActualGlobal;
+                const nombreCompleto = colabObj ? `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim() : codColab;
+
+                enviarRegistroASheet(nombreCompleto, fecha, turno, horaEntrada, horaSalida, idDoc, "ANULADO");
+
+                cerrarModalWeb();
+                if (usuarioActualGlobal.rol === "ADMIN") {
+                    await cargarDatosAdmin();
+                } else {
+                    await cargarDatosColaboradorWeb(usuarioActualGlobal);
+                }
+            } catch (e) {
+                alert("Error al anular: " + e.message);
+                setButtonLoading('btn-delete-confirm', false, 'Sí, Anular');
+            }
+        }
+
+        window.recargarDatosColaboradorManual = async function() {
+            mostrarCargador(true);
+            await cargarDatosColaboradorWeb(usuarioActualGlobal);
+            mostrarCargador(false);
+        }
+
+        async function cargarDatosColaboradorWeb(colab) {
+            const nombreColab = colab.nombres || colab.nombre || colab.nombresCompletos || "Colaborador";
+            document.getElementById('colab-nombre-user').innerText = nombreColab;
+            
+            const cod = colab.codigoColaborador || colab.codColaborador || colab.codigo;
+            const snapshot = await getDocs(collection(db, "REGISTROS_ASISTENCIA"));
+            
+            let registrosList = [];
+            snapshot.forEach(d => {
+                const r = d.data();
+                if(r.codigoColaborador === cod && r.estado !== "ANULADO") {
+                    registrosList.push({ idDoc: d.id, ...r });
+                }
+            });
+
+            cacheRegistrosColaborador = registrosList;
+
+            const semanasSet = new Set();
+            registrosList.forEach(r => {
+                if(r.fecha) semanasSet.add(calcularNumeroSemanaWeb(r.fecha));
+            });
+            const semanasDisponibles = Array.from(semanasSet).sort((a,b) => a - b);
+            
+            const semanaActualGlobal = calcularNumeroSemanaWeb(new Date().toLocaleDateString('es-PE'));
+            if(!semanaSeleccionadaColab || !semanasDisponibles.includes(semanaSeleccionadaColab)) {
+                semanaSeleccionadaColab = semanasDisponibles.length > 0 ? semanasDisponibles[semanasDisponibles.length - 1] : semanaActualGlobal;
+            }
+
+            const selectEl = document.getElementById('colab-select-semana');
+            selectEl.innerHTML = semanasDisponibles.length === 0 
+                ? `<option value="${semanaActualGlobal}">Semana ${semanaActualGlobal}</option>`
+                : semanasDisponibles.map(sem => `<option value="${sem}" ${sem === semanaSeleccionadaColab ? 'selected' : ''}>Semana ${sem}</option>`).join('');
+
+            renderizarListaColaborador(semanaSeleccionadaColab);
+        }
+
+        window.enviarRegistroASheet = function(nombreCompleto, fecha, turno, horaEntrada, horaSalida, idRegistro, estado = "ACTIVO") {
+            const scriptURL = 'https://script.google.com/macros/s/AKfycbyQRYAFptY9mLS-xYJbO2qkg5i5ZtxmSsd9fuvyjEZ6qC-WRg-eFm-kGbZ6sYVYiU3j/exec'; 
+            const formData = new FormData();
+            formData.append('nombreCompleto', nombreCompleto);
+            formData.append('fecha', fecha);
+            formData.append('turno', turno);
+            formData.append('horaEntrada', horaEntrada);
+            formData.append('horaSalida', horaSalida);
+            formData.append('idRegistro', idRegistro);
+            formData.append('estado', estado);
+
+            fetch(scriptURL, { method: 'POST', body: formData }).catch(error => console.error('Error sincronizando con Sheet:', error));
+        }
+
+        window.cambiarSemanaColab = function(sem) {
+            semanaSeleccionadaColab = parseInt(sem);
+            renderizarListaColaborador(semanaSeleccionadaColab);
+        }
+
+        function renderizarListaColaborador(semanaFiltro) {
+            const listEl = document.getElementById('colab-lista-registros');
+            const regsFiltradas = cacheRegistrosColaborador.filter(r => calcularNumeroSemanaWeb(r.fecha) === semanaFiltro);
+
+            if(regsFiltradas.length === 0) {
+                listEl.innerHTML = `<p class="text-center text-gray-400 py-8">No hay registros para la Semana ${semanaFiltro}.</p>`;
+                return;
+            }
+
+            listEl.innerHTML = '';
+            regsFiltradas.forEach(r => {
+                listEl.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                        <div>
+                            <p class="font-bold text-sm text-[#212121]">${r.fecha} - <span class="text-gray-500 font-normal">${r.turno}</span></p>
+                            <p class="text-xs text-gray-500 mt-1">Entrada: ${r.horaEntrada} | Salida: ${r.horaSalida || 'En curso'}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-medium text-[#1976D2] bg-blue-50 px-2 py-1 rounded">${r.estado}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        window.abrirModalNuevoRegistroColab = function() {
+            const fechaHoy = obtenerFechaLocalFormateada();
+            const fechaAyer = obtenerFechaAyerFormateada();
+
+            const box = document.getElementById('modal-content-box');
+            box.innerHTML = `
+                <h3 class="text-lg font-bold mb-4 text-[#1976D2]">Nuevo Registro de Horario</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Turno</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" onclick="seleccionarTurnoWeb('DIA')" id="btn-turno-dia" class="py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]">DÍA</button>
+                            <button type="button" onclick="seleccionarTurnoWeb('NOCHE')" id="btn-turno-noche" class="py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300">NOCHE</button>
+                        </div>
+                    </div>
+
+                    <div id="contenedor-campo-fecha">
+                        <label class="block text-xs font-medium text-gray-600 mb-1" id="label-fecha-titulo">Fecha del Turno (Hoy)</label>
+                        <input type="text" id="web-fecha-txt" value="${fechaHoy}" readonly class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 text-gray-700">
+                        <select id="web-fecha-select" class="w-full px-3 py-2 border rounded-lg text-sm bg-white hidden">
+                            <option value="${fechaHoy}">${fechaHoy} (Hoy)</option>
+                            <option value="${fechaAyer}">${fechaAyer} (Ayer)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Entrada</label>
+                            <div class="flex items-center border rounded-lg overflow-hidden bg-white">
+                                <input type="text" id="web-entrada" value="08:00" class="w-full px-2 py-2 text-sm focus:outline-none">
+                                <button type="button" onclick="toggleAmPm('web-ent-ampm')" id="web-ent-ampm" class="px-2 py-2 bg-gray-100 text-[#1976D2] font-bold text-xs border-l hover:bg-gray-200">AM</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Salida</label>
+                            <div class="flex items-center border rounded-lg overflow-hidden bg-white">
+                                <input type="text" id="web-salida" value="06:00" class="w-full px-2 py-2 text-sm focus:outline-none">
+                                <button type="button" onclick="toggleAmPm('web-sal-ampm')" id="web-sal-ampm" class="px-2 py-2 bg-gray-100 text-[#1976D2] font-bold text-xs border-l hover:bg-gray-200">PM</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="cerrarModalWeb()" class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg text-sm font-bold">Cancelar</button>
+                        <button onclick="guardarRegistroWeb()" id="btn-nrc-save" class="flex-1 bg-[#1976D2] text-white py-2 rounded-lg text-sm font-bold flex justify-center items-center">
+                            <span>Guardar</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-global').classList.remove('hidden');
+        }
+
+        window.turnoSeleccionadoWebActual = "DIA";
+
+        window.seleccionarTurnoWeb = function(turno) {
+            turnoSeleccionadoWebActual = turno;
+            const btnDia = document.getElementById('btn-turno-dia');
+            const btnNoche = document.getElementById('btn-turno-noche');
+            const inputTxt = document.getElementById('web-fecha-txt');
+            const selectFecha = document.getElementById('web-fecha-select');
+            const lblTitulo = document.getElementById('label-fecha-titulo');
+
+            if (turno === 'DIA') {
+                btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
+                btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
+                inputTxt.classList.remove('hidden');
+                selectFecha.classList.add('hidden');
+                lblTitulo.innerText = "Fecha del Turno (Hoy)";
+            } else {
+                btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
+                btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
+                inputTxt.classList.add('hidden');
+                selectFecha.classList.remove('hidden');
+                lblTitulo.innerText = "Seleccionar Fecha";
+            }
+        }
+
+        window.cerrarModalWeb = function() {
+            document.getElementById('modal-global').classList.add('hidden');
+        }
+
+        window.guardarRegistroWeb = async function() {
+            let fecha = "";
+            if (turnoSeleccionadoWebActual === 'DIA') {
+                fecha = document.getElementById('web-fecha-txt').value;
+            } else {
+                fecha = document.getElementById('web-fecha-select').value;
+            }
+
+            const turno = turnoSeleccionadoWebActual;
+            const horaEntrada = document.getElementById('web-entrada').value.trim() + " " + document.getElementById('web-ent-ampm').innerText;
+            const horaSalida = document.getElementById('web-salida').value.trim() + " " + document.getElementById('web-sal-ampm').innerText;
+            const cod = usuarioActualGlobal.codigoColaborador || usuarioActualGlobal.codColaborador || usuarioActualGlobal.codigo;
+
+            setButtonLoading('btn-nrc-save', true, 'Guardando...');
+            try {
+                const docRef = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
+                    codigoColaborador: cod,
+                    fecha: fecha,
+                    turno: turno,
+                    horaEntrada: horaEntrada,
+                    horaSalida: horaSalida,
+                    estado: "COMPLETO"
+                });
+
+                const nombreCompleto = `${usuarioActualGlobal.nombres || usuarioActualGlobal.nombre || ''} ${usuarioActualGlobal.apellidos || ''}`.trim();
+                enviarRegistroASheet(nombreCompleto, fecha, turno, horaEntrada, horaSalida, docRef.id, "ACTIVO");
+
+                cerrarModalWeb();
+                cargarDatosColaboradorWeb(usuarioActualGlobal);
+            } catch(e) {
+                alert("Error al guardar: " + e.message);
+                setButtonLoading('btn-nrc-save', false, 'Guardar');
+            }
+        }
+    </script>
+</body>
+</html>

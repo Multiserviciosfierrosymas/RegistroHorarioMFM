@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "724186338370",
+    "project_id": "registrohorario-mfm",
+    "storage_bucket": "registrohorario-mfm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:724186338370:android:b98e2fd72fb172330c09db",
+        "android_client_info": {
+          "package_name": "com.registrohorario_mfm"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "724186338370-e36vdrcctd9lm1f6v77pdg7s3k4nake1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.registrohorario_mfm",
+            "certificate_hash": "5599362c7c81c3f31b8addde16692a47efda447e"
+          }
+        },
+        {
+          "client_id": "724186338370-ceb67bocd6tsk76poiv2dgad58t1obvp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxwWv8P7gTFfo1-B6meysKDgnWiMixPZI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "724186338370-ceb67bocd6tsk76poiv2dgad58t1obvp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
