@@ -336,7 +336,7 @@ fun AdminScreen(onLogout: () -> Unit) {
             containerColor = FondoGrisClaro,
             topBar = {
                 TopAppBar(
-                    title = { Text("Panel de Administrador", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
+                    title = { Text("Panel de Administrador", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.White,
                         titleContentColor = TextoOscuro

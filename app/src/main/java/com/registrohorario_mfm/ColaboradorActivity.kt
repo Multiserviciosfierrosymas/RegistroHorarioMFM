@@ -175,7 +175,7 @@ fun ColaboradorScreen(onLogout: () -> Unit) {
             containerColor = ColabFondoGrisClaro,
             topBar = {
                 TopAppBar(
-                    title = { Text("Panel de Colaborador", fontWeight = FontWeight.Bold, fontSize = 20.sp) },
+                    title = { Text("Panel de Colaborador", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.White,
                         titleContentColor = ColabTextoOscuro
