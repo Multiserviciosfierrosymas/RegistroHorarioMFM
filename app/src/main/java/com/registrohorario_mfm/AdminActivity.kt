@@ -702,8 +702,8 @@ fun DialogoNuevoRegistro(
                         onDismissRequest = { expandedFechaEntrada = false },
                         modifier = Modifier.background(Color.White)
                     ) {
-                        DropdownMenuItem(text = { Text(fechaHoy) }, onClick = { fechaEntrada = fechaHoy; expandedFechaEntrada = false })
-                        DropdownMenuItem(text = { Text(fechaAyer) }, onClick = { fechaEntrada = fechaAyer; expandedFechaEntrada = false })
+                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaEntrada = fechaAyer; expandedFechaEntrada = false })
+                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaEntrada = fechaHoy; expandedFechaEntrada = false })
                     }
                 }
 
@@ -739,9 +739,9 @@ fun DialogoNuevoRegistro(
                         onDismissRequest = { expandedFechaSalida = false },
                         modifier = Modifier.background(Color.White)
                     ) {
-                        DropdownMenuItem(text = { Text(fechaAyer) }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text(fechaHoy) }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text(fechaMañana) }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text("$fechaMañana (Mañana)") }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
                     }
                 }
 
@@ -928,17 +928,56 @@ fun DialogoEditarUsuario(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DialogoEditarAsistenciaAdmin(
     detalle: AsistenciaConDetalle,
     onDismiss: () -> Unit,
     onActualizadoExitoso: () -> Unit
 ) {
-    var fecha by remember { mutableStateOf(detalle.asistencia.fecha) }
-    var turno by remember { mutableStateOf(detalle.asistencia.turno) }
-    var horaEntrada by remember { mutableStateOf(detalle.asistencia.horaEntrada) }
-    var horaSalida by remember { mutableStateOf(detalle.asistencia.horaSalida) }
-    var estado by remember { mutableStateOf(detalle.asistencia.estado) }
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("es", "PE"))
+
+    val calHoy = Calendar.getInstance()
+    val calAyer = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+    val calMañana = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
+
+    val fechaHoy = dateFormat.format(calHoy.time)
+    val fechaAyer = dateFormat.format(calAyer.time)
+    val fechaMañana = dateFormat.format(calMañana.time)
+
+    val registro = detalle.asistencia
+
+    var turnoSeleccionado by remember { mutableStateOf(if (registro.turno.isNotBlank()) registro.turno else "DIA") }
+    var fechaEntrada by remember { mutableStateOf(if (registro.fecha.isNotBlank()) registro.fecha else fechaHoy) }
+
+    // Extraer fecha de salida del texto compuesto (ej: "05:00 PM (Salida el 08/11/2026)") o usar la de entrada
+    var fechaSalida by remember {
+        val match = Regex("Salida el (\\d{2}/\\d{2}/\\d{4})").find(registro.horaSalida)
+        mutableStateOf(match?.groupValues?.get(1) ?: registro.fecha.ifBlank { fechaHoy })
+    }
+
+    // Parsear hora de entrada (Ej: "08:00 AM")
+    val partesEntrada = registro.horaEntrada.split(" ")
+    val horaEntradaArr = partesEntrada.getOrNull(0)?.split(":") ?: listOf("08", "00")
+    var horaEntradaH by remember { mutableStateOf(horaEntradaArr.getOrNull(0) ?: "08") }
+    var horaEntradaM by remember { mutableStateOf(horaEntradaArr.getOrNull(1) ?: "00") }
+    var ampmEntrada by remember { mutableStateOf(partesEntrada.getOrNull(1) ?: "AM") }
+    var expandedAmPmEntrada by remember { mutableStateOf(false) }
+
+    // Parsear hora de salida
+    val horaSalidaPuraStr = partesEntrada.getOrNull(0) ?: registro.horaSalida
+    val partesSalidaClean = horaSalidaPuraStr.split(" ")
+    val horaSalidaArr = partesSalidaClean.getOrNull(0)?.split(":") ?: listOf("05", "00")
+    var horaSalidaH by remember { mutableStateOf(horaSalidaArr.getOrNull(0) ?: "05") }
+    var horaSalidaM by remember { mutableStateOf(horaSalidaArr.getOrNull(1) ?: "00") }
+    var ampmSalida by remember { mutableStateOf(partesSalidaClean.getOrNull(1) ?: "PM") }
+    var expandedAmPmSalida by remember { mutableStateOf(false) }
+
+    var estadoRegistro by remember { mutableStateOf(if (registro.estado.isNotBlank()) registro.estado else "COMPLETO") }
+    var expandedEstado by remember { mutableStateOf(false) }
+
+    var expandedFechaEntrada by remember { mutableStateOf(false) }
+    var expandedFechaSalida by remember { mutableStateOf(false) }
 
     var errorMessage by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
@@ -947,52 +986,199 @@ fun DialogoEditarAsistenciaAdmin(
     AlertDialog(
         containerColor = Color.White,
         onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text("Editar Registro - ${detalle.nombreCompleto}", color = TextoOscuro) },
+        title = { Text("Editar Registro - ${detalle.nombreCompleto}", color = TextoOscuro, fontSize = 16.sp) },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                OutlinedTextField(value = fecha, onValueChange = { fecha = it }, label = { Text("Fecha (DD/MM/YYYY)") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = turno, onValueChange = { turno = it }, label = { Text("Turno (DIA / NOCHE)") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = horaEntrada, onValueChange = { horaEntrada = it }, label = { Text("Hora Entrada") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = horaSalida, onValueChange = { horaSalida = it }, label = { Text("Hora Salida") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = estado, onValueChange = { estado = it }, label = { Text("Estado") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
+                // Turno
+                Text("Turno:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            turnoSeleccionado = "DIA"
+                            fechaEntrada = fechaHoy
+                            fechaSalida = fechaHoy
+                        },
+                        enabled = !isSaving,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(4.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (turnoSeleccionado == "DIA") AzulFondoSeleccion else Color.White,
+                            contentColor = if (turnoSeleccionado == "DIA") AzulPrimario else TextoGris
+                        ),
+                        border = BorderStroke(1.dp, if (turnoSeleccionado == "DIA") AzulPrimario else Color.LightGray)
+                    ) { Text("DÍA") }
+
+                    OutlinedButton(
+                        onClick = {
+                            turnoSeleccionado = "NOCHE"
+                            fechaEntrada = fechaAyer
+                            fechaSalida = fechaHoy
+                        },
+                        enabled = !isSaving,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(4.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (turnoSeleccionado == "NOCHE") AzulFondoSeleccion else Color.White,
+                            contentColor = if (turnoSeleccionado == "NOCHE") AzulPrimario else TextoGris
+                        ),
+                        border = BorderStroke(1.dp, if (turnoSeleccionado == "NOCHE") AzulPrimario else Color.LightGray)
+                    ) { Text("NOCHE / CRUZADO") }
+                }
+
+                // 1. Fecha de Entrada
+                Text("Fecha de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                ExposedDropdownMenuBox(
+                    expanded = expandedFechaEntrada,
+                    onExpandedChange = { if (!isSaving) expandedFechaEntrada = !expandedFechaEntrada }
+                ) {
+                    OutlinedTextField(
+                        value = fechaEntrada,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = !isSaving,
+                        colors = miTextFieldColors(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaEntrada) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedFechaEntrada,
+                        onDismissRequest = { expandedFechaEntrada = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaEntrada = fechaAyer; expandedFechaEntrada = false })
+                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaEntrada = fechaHoy; expandedFechaEntrada = false })
+                    }
+                }
+
+                // 2. Hora de Entrada
+                Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = horaEntradaH, onValueChange = { horaEntradaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
+                    Text(":", color = TextoOscuro)
+                    OutlinedTextField(value = horaEntradaM, onValueChange = { horaEntradaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
+                    Box(modifier = Modifier.weight(1.2f)) {
+                        OutlinedButton(onClick = { expandedAmPmEntrada = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmEntrada, color = AzulPrimario) }
+                        DropdownMenu(expanded = expandedAmPmEntrada, onDismissRequest = { expandedAmPmEntrada = false }, modifier = Modifier.background(Color.White)) {
+                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmEntrada = "AM"; expandedAmPmEntrada = false })
+                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmEntrada = "PM"; expandedAmPmEntrada = false })
+                        }
+                    }
+                }
+
+                // 3. Fecha de Salida
+                Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                ExposedDropdownMenuBox(
+                    expanded = expandedFechaSalida,
+                    onExpandedChange = { if (!isSaving) expandedFechaSalida = !expandedFechaSalida }
+                ) {
+                    OutlinedTextField(
+                        value = fechaSalida,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = !isSaving,
+                        colors = miTextFieldColors(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaSalida) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedFechaSalida,
+                        onDismissRequest = { expandedFechaSalida = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text("$fechaMañana (Mañana)") }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
+                    }
+                }
+
+                // 4. Hora de Salida
+                Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = horaSalidaH, onValueChange = { horaSalidaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
+                    Text(":", color = TextoOscuro)
+                    OutlinedTextField(value = horaSalidaM, onValueChange = { horaSalidaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
+                    Box(modifier = Modifier.weight(1.2f)) {
+                        OutlinedButton(onClick = { expandedAmPmSalida = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmSalida, color = AzulPrimario) }
+                        DropdownMenu(expanded = expandedAmPmSalida, onDismissRequest = { expandedAmPmSalida = false }, modifier = Modifier.background(Color.White)) {
+                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmSalida = "AM"; expandedAmPmSalida = false })
+                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmSalida = "PM"; expandedAmPmSalida = false })
+                        }
+                    }
+                }
+
+                // Estado
+                Text("Estado:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                ExposedDropdownMenuBox(
+                    expanded = expandedEstado,
+                    onExpandedChange = { if (!isSaving) expandedEstado = !expandedEstado }
+                ) {
+                    OutlinedTextField(
+                        value = estadoRegistro,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = !isSaving,
+                        colors = miTextFieldColors(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedEstado) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedEstado,
+                        onDismissRequest = { expandedEstado = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        DropdownMenuItem(text = { Text("COMPLETO") }, onClick = { estadoRegistro = "COMPLETO"; expandedEstado = false })
+                        DropdownMenuItem(text = { Text("ACTIVO") }, onClick = { estadoRegistro = "ACTIVO"; expandedEstado = false })
+                    }
+                }
 
                 if (errorMessage.isNotEmpty()) {
-                    Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
+                    Text(text = errorMessage, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
+                    if (fechaEntrada.isBlank() || fechaSalida.isBlank()) {
+                        errorMessage = "Seleccione las fechas correctamente."
+                        return@Button
+                    }
                     isSaving = true
                     scope.launch {
                         try {
                             val db = FirebaseFirestore.getInstance()
+
+                            val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+                            val horaEntradaCompleta = "$horaEntradaH:$horaEntradaM $ampmEntrada"
+
                             val cambios = mapOf(
-                                "fecha" to fecha.trim(),
-                                "turno" to turno.trim().uppercase(),
-                                "horaEntrada" to horaEntrada.trim(),
-                                "horaSalida" to horaSalida.trim(),
-                                "estado" to estado.trim().uppercase()
+                                "fecha" to fechaEntrada.trim(),
+                                "turno" to turnoSeleccionado,
+                                "horaEntrada" to horaEntradaCompleta,
+                                "horaSalida" to textoHoraSalidaCompleta,
+                                "estado" to estadoRegistro
                             )
-                            db.collection("REGISTROS_ASISTENCIA").document(detalle.asistencia.idDoc).update(cambios).await()
+
+                            db.collection("REGISTROS_ASISTENCIA").document(registro.idDoc).update(cambios).await()
+
                             NetworkUtils.enviarRegistroASheetAndroid(
                                 nombreCompleto = detalle.nombreCompleto,
-                                fecha = fecha.trim(),
-                                turno = turno.trim().uppercase(),
-                                horaEntrada = horaEntrada.trim(),
-                                horaSalida = horaSalida.trim(),
-                                idRegistro = detalle.asistencia.idDoc,
+                                fecha = fechaEntrada.trim(),
+                                turno = turnoSeleccionado,
+                                horaEntrada = horaEntradaCompleta,
+                                horaSalida = textoHoraSalidaCompleta,
+                                idRegistro = registro.idDoc,
                                 estado = "ACTIVO"
                             )
+
                             onActualizadoExitoso()
                         } catch (e: Exception) {
-                            errorMessage = "Error: ${e.message}"
+                            errorMessage = "Error al actualizar: ${e.message}"
                             isSaving = false
                         }
                     }
@@ -1010,7 +1196,9 @@ fun DialogoEditarAsistenciaAdmin(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancelar", color = TextoGris) }
+            TextButton(onClick = onDismiss, enabled = !isSaving) {
+                Text("Cancelar", color = TextoGris)
+            }
         }
     )
 }
@@ -1147,13 +1335,11 @@ fun TabRegistroAgrupadoConFiltroSemana(
 
                         if (isExpanded) {
                             grupo.registros.forEachIndexed { index, registro ->
-                                val horaSalidaTxt = if (registro.horaSalida.isEmpty()) "En curso" else registro.horaSalida
-                                val horarioCompleto = "${registro.horaEntrada}\n$horaSalidaTxt"
-
                                 ItemRegistro(
                                     fecha = registro.fecha,
                                     turno = registro.turno,
-                                    horario = horarioCompleto,
+                                    horaEntrada = registro.horaEntrada,
+                                    horaSalida = if (registro.horaSalida.isEmpty()) "En curso" else registro.horaSalida,
                                     onEditClick = { onRegistroClick(grupo, registro) },
                                     onDeleteClick = { onDeleteRegistro(grupo, registro) },
                                     esUltimoElemento = index == grupo.registros.size - 1
@@ -1171,7 +1357,8 @@ fun TabRegistroAgrupadoConFiltroSemana(
 fun ItemRegistro(
     fecha: String,
     turno: String,
-    horario: String,
+    horaEntrada: String,
+    horaSalida: String,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     esUltimoElemento: Boolean = false
@@ -1186,52 +1373,102 @@ fun ItemRegistro(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            // --- ENCABEZADO (Turno y Fecha) ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        color = AzulFondoSeleccion,
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            text = turno,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AzulPrimario
+                        )
+                    }
                     Text(
                         text = fecha,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         color = TextoOscuro
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = turno,
-                        fontSize = 14.sp,
-                        color = TextoGris
-                    )
                 }
-                Text(
-                    text = horario,
-                    fontSize = 14.sp,
-                    color = TextoGris
-                )
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // --- DETALLE DE HORAS (Entrada y Salida en columnas ordenadas) ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                IconButton(onClick = onEditClick) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = "ENTRADA", fontSize = 10.sp, color = TextoGris, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(text = horaEntrada, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextoOscuro)
+                }
+
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                    Text(text = "SALIDA", fontSize = 10.sp, color = TextoGris, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = horaSalida,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextoOscuro,
+                        maxLines = 2
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- BOTONES DE ACCIÓN (Editar y Eliminar) ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onEditClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "Editar",
-                        tint = TextoGris
+                        tint = TextoGris,
+                        modifier = Modifier.size(16.dp)
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("EDITAR", fontSize = 12.sp, color = TextoGris, fontWeight = FontWeight.Bold)
                 }
-                IconButton(onClick = onDeleteClick) {
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                TextButton(
+                    onClick = onDeleteClick,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Eliminar",
-                        tint = MaterialTheme.colorScheme.error
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("ANULAR", fontSize = 12.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             }
         }
+
         if (!esUltimoElemento) {
             HorizontalDivider(color = Color.LightGray, thickness = 0.5.dp)
         }

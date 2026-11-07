@@ -268,35 +268,73 @@ fun ColaboradorScreen(onLogout: () -> Unit) {
                                         colors = CardDefaults.cardColors(containerColor = Color.White),
                                         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                                     ) {
-                                        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp)
+                                        ) {
+                                            // --- ENCABEZADO DE LA TARJETA (Fecha y Turno) ---
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.Top
-                                            ) {
-                                                Column {
-                                                    Text(text = item.fecha, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ColabTextoOscuro)
-                                                    Spacer(modifier = Modifier.height(4.dp))
-                                                    Text(text = item.turno, fontSize = 14.sp, color = ColabTextoGris)
-                                                }
-
-                                                val horaSalidaTxt = if (item.horaSalida.isEmpty()) "En curso" else item.horaSalida
-                                                Text(text = "${item.horaEntrada} - $horaSalidaTxt", fontSize = 14.sp, color = ColabTextoGris)
-                                            }
-
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(top = 8.dp),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Surface(
+                                                        color = ColabAzulFondoSeleccion,
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = item.turno,
+                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                            fontSize = 12.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = ColabAzulPrimario
+                                                        )
+                                                    }
+                                                    Text(
+                                                        text = item.fecha,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 14.sp,
+                                                        color = ColabTextoOscuro
+                                                    )
+                                                }
+
                                                 Text(
                                                     text = item.estado,
                                                     color = ColabAzulPrimario,
                                                     fontWeight = FontWeight.Medium,
                                                     fontSize = 12.sp
                                                 )
+                                            }
+
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+                                            Spacer(modifier = Modifier.height(10.dp))
+
+                                            // --- DETALLE DE HORAS (Entrada y Salida ordenadas) ---
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(text = "ENTRADA", fontSize = 10.sp, color = ColabTextoGris, fontWeight = FontWeight.Bold)
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(text = item.horaEntrada, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ColabTextoOscuro)
+                                                }
+
+                                                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                                    Text(text = "SALIDA", fontSize = 10.sp, color = ColabTextoGris, fontWeight = FontWeight.Bold)
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    val horaSalidaTxt = if (item.horaSalida.isEmpty()) "En curso" else item.horaSalida
+                                                    Text(
+                                                        text = horaSalidaTxt,
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = ColabTextoOscuro,
+                                                        maxLines = 2
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -340,7 +378,6 @@ fun DialogoNuevoRegistroColaborador(
     val fechaAyer = dateFormat.format(calAyer.time)
     val fechaMañana = dateFormat.format(calMañana.time)
 
-    // Fechas de Entrada y Salida separadas para permitir turnos cruzados (Ej: de noche a tarde del día siguiente)
     var fechaEntrada by remember { mutableStateOf(fechaHoy) }
     var fechaSalida by remember { mutableStateOf(fechaHoy) }
 
@@ -403,7 +440,7 @@ fun DialogoNuevoRegistroColaborador(
                     OutlinedButton(
                         onClick = {
                             turnoSeleccionado = "NOCHE"
-                            fechaEntrada = fechaAyer // Por defecto sugerimos ayer para turnos nocturnos largos
+                            fechaEntrada = fechaAyer
                             fechaSalida = fechaHoy
                         },
                         enabled = !isSaving,
@@ -417,7 +454,6 @@ fun DialogoNuevoRegistroColaborador(
                     ) { Text("NOCHE / CRUZADO") }
                 }
 
-                // --- FECHA DE ENTRADA ---
                 Text("Fecha de Entrada:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
                 ExposedDropdownMenuBox(
                     expanded = expandedFechaEntrada,
@@ -437,12 +473,11 @@ fun DialogoNuevoRegistroColaborador(
                         onDismissRequest = { expandedFechaEntrada = false },
                         modifier = Modifier.background(Color.White)
                     ) {
-                        DropdownMenuItem(text = { Text(fechaHoy) }, onClick = { fechaEntrada = fechaHoy; expandedFechaEntrada = false })
-                        DropdownMenuItem(text = { Text(fechaAyer) }, onClick = { fechaEntrada = fechaAyer; expandedFechaEntrada = false })
+                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaEntrada = fechaAyer; expandedFechaEntrada = false })
+                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaEntrada = fechaHoy; expandedFechaEntrada = false })
                     }
                 }
 
-                // --- HORA DE ENTRADA ---
                 Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = horaEntradaH, onValueChange = { horaEntradaH = it }, label = { Text("HH") }, colors = colabTfColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
@@ -457,7 +492,6 @@ fun DialogoNuevoRegistroColaborador(
                     }
                 }
 
-                // --- FECHA DE SALIDA (Permite cruzar al día siguiente) ---
                 Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
                 ExposedDropdownMenuBox(
                     expanded = expandedFechaSalida,
@@ -477,13 +511,12 @@ fun DialogoNuevoRegistroColaborador(
                         onDismissRequest = { expandedFechaSalida = false },
                         modifier = Modifier.background(Color.White)
                     ) {
-                        DropdownMenuItem(text = { Text(fechaAyer) }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text(fechaHoy) }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text(fechaMañana) }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text("$fechaMañana (Mañana)") }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
                     }
                 }
 
-                // --- HORA DE SALIDA ---
                 Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = horaSalidaH, onValueChange = { horaSalidaH = it }, label = { Text("HH") }, colors = colabTfColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
@@ -515,7 +548,6 @@ fun DialogoNuevoRegistroColaborador(
                         try {
                             val db = FirebaseFirestore.getInstance()
 
-                            // Guardamos la fecha principal como la fecha de entrada (o puedes unirlas si lo requiere tu Google Sheet)
                             val fechaRegistroFinal = fechaEntrada.trim()
                             val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
 
