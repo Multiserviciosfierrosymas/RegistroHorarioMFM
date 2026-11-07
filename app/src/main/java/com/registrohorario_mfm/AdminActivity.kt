@@ -20,7 +20,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -568,6 +567,264 @@ fun AdminScreen(onLogout: () -> Unit) {
     }
 }
 
+// --- DIÁLOGO GENERAL PARA SELECCIONAR COLABORADOR Y REGISTRAR ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DialogoNuevoRegistro(
+    listaPersonal: List<UsuarioItem>,
+    onDismiss: () -> Unit,
+    onGuardadoExitoso: () -> Unit
+) {
+    var colaboradorSeleccionado by remember { mutableStateOf<UsuarioItem?>(null) }
+    var expandedPersonal by remember { mutableStateOf(false) }
+
+    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("es", "PE"))
+    val calHoy = Calendar.getInstance()
+    val calAyer = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+    val calMañana = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
+
+    val fechaHoy = dateFormat.format(calHoy.time)
+    val fechaAyer = dateFormat.format(calAyer.time)
+    val fechaMañana = dateFormat.format(calMañana.time)
+
+    var fechaEntrada by remember { mutableStateOf(fechaHoy) }
+    var fechaSalida by remember { mutableStateOf(fechaHoy) }
+
+    var turnoSeleccionado by remember { mutableStateOf("DIA") }
+    var expandedFechaEntrada by remember { mutableStateOf(false) }
+    var expandedFechaSalida by remember { mutableStateOf(false) }
+
+    var horaEntradaH by remember { mutableStateOf("08") }
+    var horaEntradaM by remember { mutableStateOf("00") }
+    var ampmEntrada by remember { mutableStateOf("AM") }
+    var expandedAmPmEntrada by remember { mutableStateOf(false) }
+
+    var horaSalidaH by remember { mutableStateOf("05") }
+    var horaSalidaM by remember { mutableStateOf("00") }
+    var ampmSalida by remember { mutableStateOf("PM") }
+    var expandedAmPmSalida by remember { mutableStateOf(false) }
+
+    var errorMessage by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    AlertDialog(
+        containerColor = Color.White,
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text("Nuevo Registro Manual (Admin)", color = TextoOscuro) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Seleccionar Colaborador:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                ExposedDropdownMenuBox(
+                    expanded = expandedPersonal,
+                    onExpandedChange = { if (!isSaving) expandedPersonal = !expandedPersonal }
+                ) {
+                    OutlinedTextField(
+                        value = colaboradorSeleccionado?.let { "${it.nombreCompleto} (${it.codigoColaborador})" } ?: "Seleccione colaborador...",
+                        onValueChange = {},
+                        readOnly = true,
+                        colors = miTextFieldColors(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedPersonal) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedPersonal,
+                        onDismissRequest = { expandedPersonal = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        listaPersonal.forEach { personal ->
+                            DropdownMenuItem(
+                                text = { Text("${personal.nombreCompleto} (${personal.codigoColaborador})") },
+                                onClick = {
+                                    colaboradorSeleccionado = personal
+                                    expandedPersonal = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Text("Turno:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            turnoSeleccionado = "DIA"
+                            fechaEntrada = fechaHoy
+                            fechaSalida = fechaHoy
+                        },
+                        enabled = !isSaving,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(4.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (turnoSeleccionado == "DIA") AzulFondoSeleccion else Color.White,
+                            contentColor = if (turnoSeleccionado == "DIA") AzulPrimario else TextoGris
+                        ),
+                        border = BorderStroke(1.dp, if (turnoSeleccionado == "DIA") AzulPrimario else Color.LightGray)
+                    ) { Text("DÍA") }
+
+                    OutlinedButton(
+                        onClick = {
+                            turnoSeleccionado = "NOCHE"
+                            fechaEntrada = fechaAyer
+                            fechaSalida = fechaHoy
+                        },
+                        enabled = !isSaving,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(4.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (turnoSeleccionado == "NOCHE") AzulFondoSeleccion else Color.White,
+                            contentColor = if (turnoSeleccionado == "NOCHE") AzulPrimario else TextoGris
+                        ),
+                        border = BorderStroke(1.dp, if (turnoSeleccionado == "NOCHE") AzulPrimario else Color.LightGray)
+                    ) { Text("NOCHE / CRUZADO") }
+                }
+
+                Text("Fecha de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                ExposedDropdownMenuBox(
+                    expanded = expandedFechaEntrada,
+                    onExpandedChange = { if (!isSaving) expandedFechaEntrada = !expandedFechaEntrada }
+                ) {
+                    OutlinedTextField(
+                        value = fechaEntrada,
+                        onValueChange = {},
+                        readOnly = true,
+                        colors = miTextFieldColors(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaEntrada) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedFechaEntrada,
+                        onDismissRequest = { expandedFechaEntrada = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        DropdownMenuItem(text = { Text(fechaHoy) }, onClick = { fechaEntrada = fechaHoy; expandedFechaEntrada = false })
+                        DropdownMenuItem(text = { Text(fechaAyer) }, onClick = { fechaEntrada = fechaAyer; expandedFechaEntrada = false })
+                    }
+                }
+
+                Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = horaEntradaH, onValueChange = { horaEntradaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
+                    Text(":", color = TextoOscuro)
+                    OutlinedTextField(value = horaEntradaM, onValueChange = { horaEntradaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
+                    Box(modifier = Modifier.weight(1.2f)) {
+                        OutlinedButton(onClick = { expandedAmPmEntrada = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmEntrada, color = AzulPrimario) }
+                        DropdownMenu(expanded = expandedAmPmEntrada, onDismissRequest = { expandedAmPmEntrada = false }, modifier = Modifier.background(Color.White)) {
+                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmEntrada = "AM"; expandedAmPmEntrada = false })
+                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmEntrada = "PM"; expandedAmPmEntrada = false })
+                        }
+                    }
+                }
+
+                Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                ExposedDropdownMenuBox(
+                    expanded = expandedFechaSalida,
+                    onExpandedChange = { if (!isSaving) expandedFechaSalida = !expandedFechaSalida }
+                ) {
+                    OutlinedTextField(
+                        value = fechaSalida,
+                        onValueChange = {},
+                        readOnly = true,
+                        colors = miTextFieldColors(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaSalida) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedFechaSalida,
+                        onDismissRequest = { expandedFechaSalida = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        DropdownMenuItem(text = { Text(fechaAyer) }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text(fechaHoy) }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text(fechaMañana) }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
+                    }
+                }
+
+                Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(value = horaSalidaH, onValueChange = { horaSalidaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
+                    Text(":", color = TextoOscuro)
+                    OutlinedTextField(value = horaSalidaM, onValueChange = { horaSalidaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
+                    Box(modifier = Modifier.weight(1.2f)) {
+                        OutlinedButton(onClick = { expandedAmPmSalida = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmSalida, color = AzulPrimario) }
+                        DropdownMenu(expanded = expandedAmPmSalida, onDismissRequest = { expandedAmPmSalida = false }, modifier = Modifier.background(Color.White)) {
+                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmSalida = "AM"; expandedAmPmSalida = false })
+                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmSalida = "PM"; expandedAmPmSalida = false })
+                        }
+                    }
+                }
+
+                if (errorMessage.isNotEmpty()) {
+                    Text(text = errorMessage, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val colab = colaboradorSeleccionado
+                    if (colab == null) {
+                        errorMessage = "Seleccione un colaborador."
+                        return@Button
+                    }
+                    if (fechaEntrada.isBlank() || fechaSalida.isBlank()) {
+                        errorMessage = "Seleccione las fechas correctamente."
+                        return@Button
+                    }
+                    isSaving = true
+                    scope.launch {
+                        try {
+                            val db = FirebaseFirestore.getInstance()
+                            val fechaRegistroFinal = fechaEntrada.trim()
+                            val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+
+                            val nuevoRegistro = hashMapOf(
+                                "codigoColaborador" to colab.codigoColaborador,
+                                "fecha" to fechaRegistroFinal,
+                                "turno" to turnoSeleccionado,
+                                "horaEntrada" to "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                "horaSalida" to textoHoraSalidaCompleta,
+                                "estado" to "COMPLETO"
+                            )
+                            val docRef = db.collection("REGISTROS_ASISTENCIA").add(nuevoRegistro).await()
+
+                            NetworkUtils.enviarRegistroASheetAndroid(
+                                nombreCompleto = colab.nombreCompleto,
+                                fecha = fechaRegistroFinal,
+                                turno = turnoSeleccionado,
+                                horaEntrada = "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                horaSalida = textoHoraSalidaCompleta,
+                                idRegistro = docRef.id,
+                                estado = "ACTIVO"
+                            )
+                            onGuardadoExitoso()
+                        } catch (e: Exception) {
+                            errorMessage = "Error: ${e.message}"
+                            isSaving = false
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AzulPrimario),
+                enabled = !isSaving
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Guardando...", color = Color.White)
+                } else {
+                    Text("Guardar", color = Color.White)
+                }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancelar", color = TextoGris) } }
+    )
+}
+
 @Composable
 fun DialogoEditarUsuario(
     usuario: UsuarioItem,
@@ -758,244 +1015,6 @@ fun DialogoEditarAsistenciaAdmin(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DialogoNuevoRegistro(
-    listaPersonal: List<UsuarioItem>,
-    onDismiss: () -> Unit,
-    onGuardadoExitoso: () -> Unit
-) {
-    var expandedDropdown by remember { mutableStateOf(false) }
-    var colaboradorSeleccionado by remember { mutableStateOf<UsuarioItem?>(null) }
-
-    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("es", "PE"))
-    var fecha by remember { mutableStateOf(dateFormat.format(Date())) }
-    var mostrarCalendario by remember { mutableStateOf(false) }
-    var turnoSeleccionado by remember { mutableStateOf("DIA") }
-
-    var horaEntradaH by remember { mutableStateOf("08") }
-    var horaEntradaM by remember { mutableStateOf("00") }
-    var ampmEntrada by remember { mutableStateOf("AM") }
-    var expandedAmPmEntrada by remember { mutableStateOf(false) }
-
-    var horaSalidaH by remember { mutableStateOf("06") }
-    var horaSalidaM by remember { mutableStateOf("00") }
-    var ampmSalida by remember { mutableStateOf("PM") }
-    var expandedAmPmSalida by remember { mutableStateOf(false) }
-
-    var errorMessage by remember { mutableStateOf("") }
-    var isSaving by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    AlertDialog(
-        containerColor = Color.White,
-        onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text("Nuevo Registro de Horario", color = TextoOscuro) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ExposedDropdownMenuBox(
-                    expanded = expandedDropdown,
-                    onExpandedChange = { if (!isSaving) expandedDropdown = !expandedDropdown }
-                ) {
-                    OutlinedTextField(
-                        value = colaboradorSeleccionado?.nombreCompleto ?: "Seleccione Colaborador...",
-                        onValueChange = {},
-                        readOnly = true,
-                        enabled = !isSaving,
-                        label = { Text("Colaborador") },
-                        colors = miTextFieldColors(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedDropdown) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedDropdown,
-                        onDismissRequest = { expandedDropdown = false },
-                        modifier = Modifier.background(Color.White)
-                    ) {
-                        listaPersonal.forEach { personal ->
-                            DropdownMenuItem(
-                                text = { Text(personal.nombreCompleto) },
-                                onClick = { colaboradorSeleccionado = personal; expandedDropdown = false }
-                            )
-                        }
-                    }
-                }
-
-                OutlinedTextField(
-                    value = fecha,
-                    onValueChange = { fecha = it },
-                    label = { Text("Fecha (DD/MM/YYYY)") },
-                    colors = miTextFieldColors(),
-                    enabled = !isSaving,
-                    trailingIcon = { IconButton(onClick = { mostrarCalendario = true }, enabled = !isSaving) { Icon(Icons.Default.DateRange, contentDescription = null, tint = AzulPrimario) } },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Text("Turno:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { turnoSeleccionado = "DIA" },
-                        enabled = !isSaving,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(4.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (turnoSeleccionado == "DIA") AzulFondoSeleccion else Color.White,
-                            contentColor = if (turnoSeleccionado == "DIA") AzulPrimario else TextoGris
-                        ),
-                        border = BorderStroke(1.dp, if (turnoSeleccionado == "DIA") AzulPrimario else Color.LightGray)
-                    ) {
-                        Text("DÍA")
-                    }
-
-                    OutlinedButton(
-                        onClick = { turnoSeleccionado = "NOCHE" },
-                        enabled = !isSaving,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(4.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (turnoSeleccionado == "NOCHE") AzulFondoSeleccion else Color.White,
-                            contentColor = if (turnoSeleccionado == "NOCHE") AzulPrimario else TextoGris
-                        ),
-                        border = BorderStroke(1.dp, if (turnoSeleccionado == "NOCHE") AzulPrimario else Color.LightGray)
-                    ) {
-                        Text("NOCHE")
-                    }
-                }
-
-                Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = horaEntradaH, onValueChange = { horaEntradaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Text(":", color = TextoOscuro)
-                    OutlinedTextField(value = horaEntradaM, onValueChange = { horaEntradaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Box(modifier = Modifier.weight(1.2f)) {
-                        OutlinedButton(onClick = { expandedAmPmEntrada = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmEntrada, color = AzulPrimario) }
-                        DropdownMenu(expanded = expandedAmPmEntrada, onDismissRequest = { expandedAmPmEntrada = false }, modifier = Modifier.background(Color.White)) {
-                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmEntrada = "AM"; expandedAmPmEntrada = false })
-                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmEntrada = "PM"; expandedAmPmEntrada = false })
-                        }
-                    }
-                }
-
-                Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = horaSalidaH, onValueChange = { horaSalidaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Text(":", color = TextoOscuro)
-                    OutlinedTextField(value = horaSalidaM, onValueChange = { horaSalidaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Box(modifier = Modifier.weight(1.2f)) {
-                        OutlinedButton(onClick = { expandedAmPmSalida = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmSalida, color = AzulPrimario) }
-                        DropdownMenu(expanded = expandedAmPmSalida, onDismissRequest = { expandedAmPmSalida = false }, modifier = Modifier.background(Color.White)) {
-                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmSalida = "AM"; expandedAmPmSalida = false })
-                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmSalida = "PM"; expandedAmPmSalida = false })
-                        }
-                    }
-                }
-
-                if (errorMessage.isNotEmpty()) { Text(text = errorMessage, color = MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (colaboradorSeleccionado == null || fecha.isBlank()) {
-                        errorMessage = "Complete los campos obligatorios."
-                        return@Button
-                    }
-                    isSaving = true
-                    scope.launch {
-                        try {
-                            val db = FirebaseFirestore.getInstance()
-                            val nuevoRegistro = hashMapOf(
-                                "codigoColaborador" to colaboradorSeleccionado!!.codigoColaborador,
-                                "fecha" to fecha.trim(),
-                                "turno" to turnoSeleccionado,
-                                "horaEntrada" to "$horaEntradaH:$horaEntradaM $ampmEntrada",
-                                "horaSalida" to "$horaSalidaH:$horaSalidaM $ampmSalida",
-                                "estado" to "COMPLETO"
-                            )
-                            val docRef = db.collection("REGISTROS_ASISTENCIA").add(nuevoRegistro).await()
-                            val nombreCompleto = colaboradorSeleccionado!!.nombreCompleto
-                            NetworkUtils.enviarRegistroASheetAndroid(
-                                nombreCompleto = nombreCompleto,
-                                fecha = fecha.trim(),
-                                turno = turnoSeleccionado,
-                                horaEntrada = "$horaEntradaH:$horaEntradaM $ampmEntrada",
-                                horaSalida = "$horaSalidaH:$horaSalidaM $ampmSalida",
-                                idRegistro = docRef.id,
-                                estado = "ACTIVO"
-                            )
-                            onGuardadoExitoso()
-                        } catch (e: Exception) {
-                            errorMessage = "Error: ${e.message}"
-                            isSaving = false
-                        }
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = AzulPrimario),
-                enabled = !isSaving
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Guardando...", color = Color.White)
-                } else {
-                    Text("Guardar", color = Color.White)
-                }
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancelar", color = TextoGris) } }
-    )
-
-    if (mostrarCalendario) {
-        val datePickerState = rememberDatePickerState()
-        MaterialTheme(
-            colorScheme = lightColorScheme(
-                primary = AzulPrimario, // (O ColabAzulPrimario en ColaboradorActivity)
-                onPrimary = Color.White,
-                surface = Color.White,
-                onSurface = TextoOscuro, // (O ColabTextoOscuro en ColaboradorActivity)
-                surfaceVariant = Color.White,
-                surfaceContainer = Color.White,
-                surfaceContainerHigh = Color.White,
-                surfaceContainerHighest = Color.White,
-                surfaceContainerLow = Color.White,
-                surfaceContainerLowest = Color.White
-            )
-        ) {
-            DatePickerDialog(
-                onDismissRequest = { mostrarCalendario = false },
-                confirmButton = {
-                    TextButton(onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            // Creamos un formateador exclusivo en UTC para leer lo que devuelve Compose
-                            val utcFormat = SimpleDateFormat("dd/MM/yyyy", Locale("es", "PE"))
-                            utcFormat.timeZone = TimeZone.getTimeZone("UTC")
-
-                            fecha = utcFormat.format(Date(millis))
-                        }
-                        mostrarCalendario = false
-                    }) { Text("Aceptar", color = AzulPrimario) }
-                },
-                dismissButton = { TextButton(onClick = { mostrarCalendario = false }) { Text("Cancelar", color = TextoGris) } }
-            ) {
-                DatePicker(
-                    state = datePickerState,
-                    colors = DatePickerDefaults.colors(
-                        containerColor = Color.White
-                    )
-                )
-            }
-        }
-    }
-}
-
 @Composable
 fun TabAdminView(admins: List<UsuarioItem>, onItemClick: (UsuarioItem) -> Unit) {
     if (admins.isEmpty()) {
@@ -1129,7 +1148,7 @@ fun TabRegistroAgrupadoConFiltroSemana(
                         if (isExpanded) {
                             grupo.registros.forEachIndexed { index, registro ->
                                 val horaSalidaTxt = if (registro.horaSalida.isEmpty()) "En curso" else registro.horaSalida
-                                val horarioCompleto = "${registro.horaEntrada} - $horaSalidaTxt"
+                                val horarioCompleto = "${registro.horaEntrada}\n$horaSalidaTxt"
 
                                 ItemRegistro(
                                     fecha = registro.fecha,

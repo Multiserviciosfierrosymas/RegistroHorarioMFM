@@ -332,25 +332,28 @@ fun DialogoNuevoRegistroColaborador(
 ) {
     val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("es", "PE"))
 
-    // Calcular fechas "Hoy" y "Ayer"
     val calHoy = Calendar.getInstance()
     val calAyer = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+    val calMañana = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, 1) }
 
     val fechaHoy = dateFormat.format(calHoy.time)
     val fechaAyer = dateFormat.format(calAyer.time)
+    val fechaMañana = dateFormat.format(calMañana.time)
 
-    // Estado principal de la fecha que se guardará
-    var fecha by remember { mutableStateOf(fechaHoy) }
+    // Fechas de Entrada y Salida separadas para permitir turnos cruzados (Ej: de noche a tarde del día siguiente)
+    var fechaEntrada by remember { mutableStateOf(fechaHoy) }
+    var fechaSalida by remember { mutableStateOf(fechaHoy) }
 
     var turnoSeleccionado by remember { mutableStateOf("DIA") }
-    var expandedFechaNoche by remember { mutableStateOf(false) }
+    var expandedFechaEntrada by remember { mutableStateOf(false) }
+    var expandedFechaSalida by remember { mutableStateOf(false) }
 
     var horaEntradaH by remember { mutableStateOf("08") }
     var horaEntradaM by remember { mutableStateOf("00") }
     var ampmEntrada by remember { mutableStateOf("AM") }
     var expandedAmPmEntrada by remember { mutableStateOf(false) }
 
-    var horaSalidaH by remember { mutableStateOf("06") }
+    var horaSalidaH by remember { mutableStateOf("05") }
     var horaSalidaM by remember { mutableStateOf("00") }
     var ampmSalida by remember { mutableStateOf("PM") }
     var expandedAmPmSalida by remember { mutableStateOf(false) }
@@ -364,15 +367,28 @@ fun DialogoNuevoRegistroColaborador(
         onDismissRequest = { if (!isSaving) onDismiss() },
         title = { Text("Nuevo Registro de Horario", color = ColabTextoOscuro) },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = nombreColaborador, onValueChange = {}, readOnly = true, label = { Text("Colaborador") }, colors = colabTfColors(), modifier = Modifier.fillMaxWidth())
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = nombreColaborador,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Colaborador") },
+                    colors = colabTfColors(),
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 Text("Turno:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = {
                             turnoSeleccionado = "DIA"
-                            fecha = fechaHoy // Al volver a DIA, forzar fecha de hoy
+                            fechaEntrada = fechaHoy
+                            fechaSalida = fechaHoy
                         },
                         enabled = !isSaving,
                         modifier = Modifier.weight(1f),
@@ -385,7 +401,11 @@ fun DialogoNuevoRegistroColaborador(
                     ) { Text("DÍA") }
 
                     OutlinedButton(
-                        onClick = { turnoSeleccionado = "NOCHE" },
+                        onClick = {
+                            turnoSeleccionado = "NOCHE"
+                            fechaEntrada = fechaAyer // Por defecto sugerimos ayer para turnos nocturnos largos
+                            fechaSalida = fechaHoy
+                        },
                         enabled = !isSaving,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(4.dp),
@@ -394,54 +414,35 @@ fun DialogoNuevoRegistroColaborador(
                             contentColor = if (turnoSeleccionado == "NOCHE") ColabAzulPrimario else ColabTextoGris
                         ),
                         border = BorderStroke(1.dp, if (turnoSeleccionado == "NOCHE") ColabAzulPrimario else Color.LightGray)
-                    ) { Text("NOCHE") }
+                    ) { Text("NOCHE / CRUZADO") }
                 }
 
-                // Lógica Dinámica de Fecha según el turno
-                if (turnoSeleccionado == "DIA") {
-                    // Turno DÍA: Fecha bloqueada en "Hoy"
+                // --- FECHA DE ENTRADA ---
+                Text("Fecha de Entrada:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
+                ExposedDropdownMenuBox(
+                    expanded = expandedFechaEntrada,
+                    onExpandedChange = { if (!isSaving) expandedFechaEntrada = !expandedFechaEntrada }
+                ) {
                     OutlinedTextField(
-                        value = fechaHoy,
-                        onValueChange = { },
-                        label = { Text("Fecha del Turno (Hoy)") },
-                        colors = colabTfColors(),
+                        value = fechaEntrada,
+                        onValueChange = {},
                         readOnly = true,
-                        enabled = false, // Deshabilitado visualmente para que no se intente editar
-                        modifier = Modifier.fillMaxWidth()
+                        enabled = !isSaving,
+                        colors = colabTfColors(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaEntrada) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
-                } else {
-                    // Turno NOCHE: Desplegable restringido a Hoy o Ayer
-                    ExposedDropdownMenuBox(
-                        expanded = expandedFechaNoche,
-                        onExpandedChange = { if (!isSaving) expandedFechaNoche = !expandedFechaNoche }
+                    ExposedDropdownMenu(
+                        expanded = expandedFechaEntrada,
+                        onDismissRequest = { expandedFechaEntrada = false },
+                        modifier = Modifier.background(Color.White)
                     ) {
-                        OutlinedTextField(
-                            value = if (fecha == fechaHoy) "$fechaHoy (Hoy)" else "$fechaAyer (Ayer)",
-                            onValueChange = {},
-                            readOnly = true,
-                            enabled = !isSaving,
-                            label = { Text("Seleccionar Fecha") },
-                            colors = colabTfColors(),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaNoche) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = expandedFechaNoche,
-                            onDismissRequest = { expandedFechaNoche = false },
-                            modifier = Modifier.background(Color.White)
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("$fechaHoy (Hoy)") },
-                                onClick = { fecha = fechaHoy; expandedFechaNoche = false }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("$fechaAyer (Ayer)") },
-                                onClick = { fecha = fechaAyer; expandedFechaNoche = false }
-                            )
-                        }
+                        DropdownMenuItem(text = { Text(fechaHoy) }, onClick = { fechaEntrada = fechaHoy; expandedFechaEntrada = false })
+                        DropdownMenuItem(text = { Text(fechaAyer) }, onClick = { fechaEntrada = fechaAyer; expandedFechaEntrada = false })
                     }
                 }
 
+                // --- HORA DE ENTRADA ---
                 Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = horaEntradaH, onValueChange = { horaEntradaH = it }, label = { Text("HH") }, colors = colabTfColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
@@ -456,6 +457,33 @@ fun DialogoNuevoRegistroColaborador(
                     }
                 }
 
+                // --- FECHA DE SALIDA (Permite cruzar al día siguiente) ---
+                Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
+                ExposedDropdownMenuBox(
+                    expanded = expandedFechaSalida,
+                    onExpandedChange = { if (!isSaving) expandedFechaSalida = !expandedFechaSalida }
+                ) {
+                    OutlinedTextField(
+                        value = fechaSalida,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = !isSaving,
+                        colors = colabTfColors(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaSalida) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedFechaSalida,
+                        onDismissRequest = { expandedFechaSalida = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        DropdownMenuItem(text = { Text(fechaAyer) }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text(fechaHoy) }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
+                        DropdownMenuItem(text = { Text(fechaMañana) }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
+                    }
+                }
+
+                // --- HORA DE SALIDA ---
                 Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = horaSalidaH, onValueChange = { horaSalidaH = it }, label = { Text("HH") }, colors = colabTfColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
@@ -470,33 +498,43 @@ fun DialogoNuevoRegistroColaborador(
                     }
                 }
 
-                if (errorMessage.isNotEmpty()) { Text(text = errorMessage, color = MaterialTheme.colorScheme.error) }
+                if (errorMessage.isNotEmpty()) {
+                    Text(text = errorMessage, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    if (fecha.isBlank()) { errorMessage = "Seleccione fecha."; return@Button }
+                    if (fechaEntrada.isBlank() || fechaSalida.isBlank()) {
+                        errorMessage = "Seleccione las fechas correctamente."
+                        return@Button
+                    }
                     isSaving = true
                     scope.launch {
                         try {
                             val db = FirebaseFirestore.getInstance()
+
+                            // Guardamos la fecha principal como la fecha de entrada (o puedes unirlas si lo requiere tu Google Sheet)
+                            val fechaRegistroFinal = fechaEntrada.trim()
+                            val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+
                             val nuevoRegistro = hashMapOf(
                                 "codigoColaborador" to codigoColaborador,
-                                "fecha" to fecha.trim(),
+                                "fecha" to fechaRegistroFinal,
                                 "turno" to turnoSeleccionado,
                                 "horaEntrada" to "$horaEntradaH:$horaEntradaM $ampmEntrada",
-                                "horaSalida" to "$horaSalidaH:$horaSalidaM $ampmSalida",
+                                "horaSalida" to textoHoraSalidaCompleta,
                                 "estado" to "COMPLETO"
                             )
                             val docRef = db.collection("REGISTROS_ASISTENCIA").add(nuevoRegistro).await()
 
                             NetworkUtils.enviarRegistroASheetAndroid(
                                 nombreCompleto = nombreColaborador,
-                                fecha = fecha.trim(),
+                                fecha = fechaRegistroFinal,
                                 turno = turnoSeleccionado,
                                 horaEntrada = "$horaEntradaH:$horaEntradaM $ampmEntrada",
-                                horaSalida = "$horaSalidaH:$horaSalidaM $ampmSalida",
+                                horaSalida = textoHoraSalidaCompleta,
                                 idRegistro = docRef.id,
                                 estado = "ACTIVO"
                             )
