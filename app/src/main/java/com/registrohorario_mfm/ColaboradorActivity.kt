@@ -548,28 +548,78 @@ fun DialogoNuevoRegistroColaborador(
                         try {
                             val db = FirebaseFirestore.getInstance()
 
-                            val fechaRegistroFinal = fechaEntrada.trim()
-                            val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+                            val esTurnoDobleOCruzoLargo = (turnoSeleccionado == "NOCHE" && fechaEntrada != fechaSalida && (ampmSalida == "PM" || (ampmSalida == "AM" && horaSalidaH.toInt() >= 8)))
 
-                            val nuevoRegistro = hashMapOf(
-                                "codigoColaborador" to codigoColaborador,
-                                "fecha" to fechaRegistroFinal,
-                                "turno" to turnoSeleccionado,
-                                "horaEntrada" to "$horaEntradaH:$horaEntradaM $ampmEntrada",
-                                "horaSalida" to textoHoraSalidaCompleta,
-                                "estado" to "COMPLETO"
-                            )
-                            val docRef = db.collection("REGISTROS_ASISTENCIA").add(nuevoRegistro).await()
+                            if (esTurnoDobleOCruzoLargo) {
+                                val horaCorteNoche = "08:00 AM"
+                                val textoSalidaNoche = "$horaCorteNoche (Salida el $fechaSalida)"
 
-                            NetworkUtils.enviarRegistroASheetAndroid(
-                                nombreCompleto = nombreColaborador,
-                                fecha = fechaRegistroFinal,
-                                turno = turnoSeleccionado,
-                                horaEntrada = "$horaEntradaH:$horaEntradaM $ampmEntrada",
-                                horaSalida = textoHoraSalidaCompleta,
-                                idRegistro = docRef.id,
-                                estado = "ACTIVO"
-                            )
+                                val regNoche = hashMapOf(
+                                    "codigoColaborador" to codigoColaborador,
+                                    "fecha" to fechaEntrada,
+                                    "turno" to "NOCHE",
+                                    "horaEntrada" to "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                    "horaSalida" to textoSalidaNoche,
+                                    "estado" to "COMPLETO"
+                                )
+                                val docRef1 = db.collection("REGISTROS_ASISTENCIA").add(regNoche).await()
+                                NetworkUtils.enviarRegistroASheetAndroid(
+                                    nombreCompleto = nombreColaborador,
+                                    fecha = fechaEntrada,
+                                    turno = "NOCHE",
+                                    horaEntrada = "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                    horaSalida = textoSalidaNoche,
+                                    idRegistro = docRef1.id,
+                                    estado = "ACTIVO"
+                                )
+
+                                val horaInicioDia = "08:00 AM"
+                                val textoSalidaFinal = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+
+                                val regDia = hashMapOf(
+                                    "codigoColaborador" to codigoColaborador,
+                                    "fecha" to fechaSalida,
+                                    "turno" to "DIA",
+                                    "horaEntrada" to horaInicioDia,
+                                    "horaSalida" to textoSalidaFinal,
+                                    "estado" to "COMPLETO"
+                                )
+                                val docRef2 = db.collection("REGISTROS_ASISTENCIA").add(regDia).await()
+                                NetworkUtils.enviarRegistroASheetAndroid(
+                                    nombreCompleto = nombreColaborador,
+                                    fecha = fechaSalida,
+                                    turno = "DIA",
+                                    horaEntrada = horaInicioDia,
+                                    horaSalida = textoSalidaFinal,
+                                    idRegistro = docRef2.id,
+                                    estado = "ACTIVO"
+                                )
+
+                            } else {
+                                val fechaRegistroFinal = fechaEntrada.trim()
+                                val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+
+                                val nuevoRegistro = hashMapOf(
+                                    "codigoColaborador" to codigoColaborador,
+                                    "fecha" to fechaRegistroFinal,
+                                    "turno" to turnoSeleccionado,
+                                    "horaEntrada" to "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                    "horaSalida" to textoHoraSalidaCompleta,
+                                    "estado" to "COMPLETO"
+                                )
+                                val docRef = db.collection("REGISTROS_ASISTENCIA").add(nuevoRegistro).await()
+
+                                NetworkUtils.enviarRegistroASheetAndroid(
+                                    nombreCompleto = nombreColaborador,
+                                    fecha = fechaRegistroFinal,
+                                    turno = turnoSeleccionado,
+                                    horaEntrada = "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                    horaSalida = textoHoraSalidaCompleta,
+                                    idRegistro = docRef.id,
+                                    estado = "ACTIVO"
+                                )
+                            }
+
                             onGuardadoExitoso()
                         } catch (e: Exception) {
                             errorMessage = "Error: ${e.message}"

@@ -55,6 +55,40 @@ fun miTextFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedLabelColor = TextoGris
 )
 
+@Composable
+fun CampoFechaAdmin(
+    fecha: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = fecha,
+            onValueChange = {},
+            readOnly = true,
+            enabled = true,
+            colors = miTextFieldColors(),
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = "Seleccionar fecha",
+                    tint = AzulPrimario
+                )
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    enabled = enabled,
+                    onClick = onClick
+                )
+        )
+    }
+}
+
 @Keep
 data class UsuarioItem(
     val idDoc: String = "",
@@ -181,6 +215,24 @@ fun calcularNumeroSemanaAdmin(fechaStr: String): Int {
         return 1
     }
 }
+
+fun convertirFechaAMillis(fecha: String): Long? {
+    return try {
+        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("es", "PE"))
+        sdf.timeZone = TimeZone.getTimeZone("UTC")
+        sdf.parse(fecha)?.time
+    } catch (e: Exception) {
+        null
+    }
+}
+
+fun convertirMillisAFecha(millis: Long): String {
+    val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("es", "PE"))
+    sdf.timeZone = TimeZone.getTimeZone("UTC")
+    return sdf.format(Date(millis))
+}
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -567,7 +619,6 @@ fun AdminScreen(onLogout: () -> Unit) {
     }
 }
 
-// --- DIÁLOGO GENERAL PARA SELECCIONAR COLABORADOR Y REGISTRAR ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DialogoNuevoRegistro(
@@ -593,6 +644,18 @@ fun DialogoNuevoRegistro(
     var turnoSeleccionado by remember { mutableStateOf("DIA") }
     var expandedFechaEntrada by remember { mutableStateOf(false) }
     var expandedFechaSalida by remember { mutableStateOf(false) }
+
+    val datePickerEntrada = key(fechaEntrada) {
+        rememberDatePickerState(
+            initialSelectedDateMillis = convertirFechaAMillis(fechaEntrada)
+        )
+    }
+
+    val datePickerSalida = key(fechaSalida) {
+        rememberDatePickerState(
+            initialSelectedDateMillis = convertirFechaAMillis(fechaSalida)
+        )
+    }
 
     var horaEntradaH by remember { mutableStateOf("08") }
     var horaEntradaM by remember { mutableStateOf("00") }
@@ -685,27 +748,13 @@ fun DialogoNuevoRegistro(
                 }
 
                 Text("Fecha de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                ExposedDropdownMenuBox(
-                    expanded = expandedFechaEntrada,
-                    onExpandedChange = { if (!isSaving) expandedFechaEntrada = !expandedFechaEntrada }
-                ) {
-                    OutlinedTextField(
-                        value = fechaEntrada,
-                        onValueChange = {},
-                        readOnly = true,
-                        colors = miTextFieldColors(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaEntrada) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedFechaEntrada,
-                        onDismissRequest = { expandedFechaEntrada = false },
-                        modifier = Modifier.background(Color.White)
-                    ) {
-                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaEntrada = fechaAyer; expandedFechaEntrada = false })
-                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaEntrada = fechaHoy; expandedFechaEntrada = false })
+                CampoFechaAdmin(
+                    fecha = fechaEntrada,
+                    enabled = !isSaving,
+                    onClick = {
+                        expandedFechaEntrada = true
                     }
-                }
+                )
 
                 Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -722,28 +771,13 @@ fun DialogoNuevoRegistro(
                 }
 
                 Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                ExposedDropdownMenuBox(
-                    expanded = expandedFechaSalida,
-                    onExpandedChange = { if (!isSaving) expandedFechaSalida = !expandedFechaSalida }
-                ) {
-                    OutlinedTextField(
-                        value = fechaSalida,
-                        onValueChange = {},
-                        readOnly = true,
-                        colors = miTextFieldColors(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaSalida) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedFechaSalida,
-                        onDismissRequest = { expandedFechaSalida = false },
-                        modifier = Modifier.background(Color.White)
-                    ) {
-                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text("$fechaMañana (Mañana)") }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
+                CampoFechaAdmin(
+                    fecha = fechaSalida,
+                    enabled = !isSaving,
+                    onClick = {
+                        expandedFechaSalida = true
                     }
-                }
+                )
 
                 Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -780,28 +814,83 @@ fun DialogoNuevoRegistro(
                     scope.launch {
                         try {
                             val db = FirebaseFirestore.getInstance()
-                            val fechaRegistroFinal = fechaEntrada.trim()
-                            val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
 
-                            val nuevoRegistro = hashMapOf(
-                                "codigoColaborador" to colab.codigoColaborador,
-                                "fecha" to fechaRegistroFinal,
-                                "turno" to turnoSeleccionado,
-                                "horaEntrada" to "$horaEntradaH:$horaEntradaM $ampmEntrada",
-                                "horaSalida" to textoHoraSalidaCompleta,
-                                "estado" to "COMPLETO"
-                            )
-                            val docRef = db.collection("REGISTROS_ASISTENCIA").add(nuevoRegistro).await()
+                            // Lógica de validación para turnos largos/cruzados
+                            val esTurnoDobleOCruzoLargo = (turnoSeleccionado == "NOCHE" && fechaEntrada != fechaSalida && (ampmSalida == "PM" || (ampmSalida == "AM" && horaSalidaH.toInt() >= 8)))
 
-                            NetworkUtils.enviarRegistroASheetAndroid(
-                                nombreCompleto = colab.nombreCompleto,
-                                fecha = fechaRegistroFinal,
-                                turno = turnoSeleccionado,
-                                horaEntrada = "$horaEntradaH:$horaEntradaM $ampmEntrada",
-                                horaSalida = textoHoraSalidaCompleta,
-                                idRegistro = docRef.id,
-                                estado = "ACTIVO"
-                            )
+                            if (esTurnoDobleOCruzoLargo) {
+                                // --- REGISTRO 1: TRAMO NOCTURNO (Hasta las 08:00 AM del día de salida) ---
+                                val horaCorteNoche = "08:00 AM"
+                                val textoSalidaNoche = "$horaCorteNoche (Salida el $fechaSalida)"
+
+                                val regNoche = hashMapOf(
+                                    "codigoColaborador" to colab.codigoColaborador,
+                                    "fecha" to fechaEntrada,
+                                    "turno" to "NOCHE",
+                                    "horaEntrada" to "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                    "horaSalida" to textoSalidaNoche,
+                                    "estado" to "COMPLETO"
+                                )
+                                val docRef1 = db.collection("REGISTROS_ASISTENCIA").add(regNoche).await()
+                                NetworkUtils.enviarRegistroASheetAndroid(
+                                    nombreCompleto = colab.nombreCompleto,
+                                    fecha = fechaEntrada,
+                                    turno = "NOCHE",
+                                    horaEntrada = "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                    horaSalida = textoSalidaNoche,
+                                    idRegistro = docRef1.id,
+                                    estado = "ACTIVO"
+                                )
+
+                                // --- REGISTRO 2: TRAMO DIURNO (Desde las 08:00 AM hasta la hora final) ---
+                                val horaInicioDia = "08:00 AM"
+                                val textoSalidaFinal = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+
+                                val regDia = hashMapOf(
+                                    "codigoColaborador" to colab.codigoColaborador,
+                                    "fecha" to fechaSalida,
+                                    "turno" to "DIA",
+                                    "horaEntrada" to horaInicioDia,
+                                    "horaSalida" to textoSalidaFinal,
+                                    "estado" to "COMPLETO"
+                                )
+                                val docRef2 = db.collection("REGISTROS_ASISTENCIA").add(regDia).await()
+                                NetworkUtils.enviarRegistroASheetAndroid(
+                                    nombreCompleto = colab.nombreCompleto,
+                                    fecha = fechaSalida,
+                                    turno = "DIA",
+                                    horaEntrada = horaInicioDia,
+                                    horaSalida = textoSalidaFinal,
+                                    idRegistro = docRef2.id,
+                                    estado = "ACTIVO"
+                                )
+
+                            } else {
+                                // --- REGISTRO NORMAL ---
+                                val fechaRegistroFinal = fechaEntrada.trim()
+                                val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+
+                                val nuevoRegistro = hashMapOf(
+                                    "codigoColaborador" to colab.codigoColaborador,
+                                    "fecha" to fechaRegistroFinal,
+                                    "turno" to turnoSeleccionado,
+                                    "horaEntrada" to "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                    "horaSalida" to textoHoraSalidaCompleta,
+                                    "estado" to "COMPLETO"
+                                )
+                                val docRef = db.collection("REGISTROS_ASISTENCIA").add(nuevoRegistro).await()
+
+                                NetworkUtils.enviarRegistroASheetAndroid(
+                                    nombreCompleto = colab.nombreCompleto,
+                                    fecha = fechaRegistroFinal,
+                                    turno = turnoSeleccionado,
+                                    horaEntrada = "$horaEntradaH:$horaEntradaM $ampmEntrada",
+                                    horaSalida = textoHoraSalidaCompleta,
+                                    idRegistro = docRef.id,
+                                    estado = "ACTIVO"
+                                )
+                            }
+
                             onGuardadoExitoso()
                         } catch (e: Exception) {
                             errorMessage = "Error: ${e.message}"
@@ -823,6 +912,52 @@ fun DialogoNuevoRegistro(
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancelar", color = TextoGris) } }
     )
+
+    if (expandedFechaEntrada) {
+        DatePickerDialog(
+            onDismissRequest = { expandedFechaEntrada = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerEntrada.selectedDateMillis?.let {
+                        fechaEntrada = convertirMillisAFecha(it)
+                    }
+                    expandedFechaEntrada = false
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { expandedFechaEntrada = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerEntrada)
+        }
+    }
+
+    if (expandedFechaSalida) {
+        DatePickerDialog(
+            onDismissRequest = { expandedFechaSalida = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerSalida.selectedDateMillis?.let {
+                        fechaSalida = convertirMillisAFecha(it)
+                    }
+                    expandedFechaSalida = false
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { expandedFechaSalida = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerSalida)
+        }
+    }
 }
 
 @Composable
@@ -950,27 +1085,39 @@ fun DialogoEditarAsistenciaAdmin(
     var turnoSeleccionado by remember { mutableStateOf(if (registro.turno.isNotBlank()) registro.turno else "DIA") }
     var fechaEntrada by remember { mutableStateOf(if (registro.fecha.isNotBlank()) registro.fecha else fechaHoy) }
 
-    // Extraer fecha de salida del texto compuesto (ej: "05:00 PM (Salida el 08/11/2026)") o usar la de entrada
     var fechaSalida by remember {
         val match = Regex("Salida el (\\d{2}/\\d{2}/\\d{4})").find(registro.horaSalida)
         mutableStateOf(match?.groupValues?.get(1) ?: registro.fecha.ifBlank { fechaHoy })
     }
 
-    // Parsear hora de entrada (Ej: "08:00 AM")
     val partesEntrada = registro.horaEntrada.split(" ")
     val horaEntradaArr = partesEntrada.getOrNull(0)?.split(":") ?: listOf("08", "00")
-    var horaEntradaH by remember { mutableStateOf(horaEntradaArr.getOrNull(0) ?: "08") }
-    var horaEntradaM by remember { mutableStateOf(horaEntradaArr.getOrNull(1) ?: "00") }
-    var ampmEntrada by remember { mutableStateOf(partesEntrada.getOrNull(1) ?: "AM") }
-    var expandedAmPmEntrada by remember { mutableStateOf(false) }
 
-    // Parsear hora de salida
-    val horaSalidaPuraStr = partesEntrada.getOrNull(0) ?: registro.horaSalida
-    val partesSalidaClean = horaSalidaPuraStr.split(" ")
+    var horaEntradaH by remember {
+        mutableStateOf(horaEntradaArr.getOrNull(0) ?: "08")
+    }
+    var horaEntradaM by remember {
+        mutableStateOf(horaEntradaArr.getOrNull(1) ?: "00")
+    }
+    var ampmEntrada by remember {
+        mutableStateOf(partesEntrada.getOrNull(1) ?: "AM")
+    }
+    var expandedAmPmEntrada by remember {
+        mutableStateOf(false)
+    }
+
+    val partesSalidaClean = registro.horaSalida.split(" ")
     val horaSalidaArr = partesSalidaClean.getOrNull(0)?.split(":") ?: listOf("05", "00")
-    var horaSalidaH by remember { mutableStateOf(horaSalidaArr.getOrNull(0) ?: "05") }
-    var horaSalidaM by remember { mutableStateOf(horaSalidaArr.getOrNull(1) ?: "00") }
-    var ampmSalida by remember { mutableStateOf(partesSalidaClean.getOrNull(1) ?: "PM") }
+
+    var horaSalidaH by remember {
+        mutableStateOf(horaSalidaArr.getOrNull(0) ?: "05")
+    }
+    var horaSalidaM by remember {
+        mutableStateOf(horaSalidaArr.getOrNull(1) ?: "00")
+    }
+    var ampmSalida by remember {
+        mutableStateOf(partesSalidaClean.getOrNull(1) ?: "PM")
+    }
     var expandedAmPmSalida by remember { mutableStateOf(false) }
 
     var estadoRegistro by remember { mutableStateOf(if (registro.estado.isNotBlank()) registro.estado else "COMPLETO") }
@@ -978,6 +1125,18 @@ fun DialogoEditarAsistenciaAdmin(
 
     var expandedFechaEntrada by remember { mutableStateOf(false) }
     var expandedFechaSalida by remember { mutableStateOf(false) }
+
+    val datePickerEntrada = key(fechaEntrada) {
+        rememberDatePickerState(
+            initialSelectedDateMillis = convertirFechaAMillis(fechaEntrada)
+        )
+    }
+
+    val datePickerSalida = key(fechaSalida) {
+        rememberDatePickerState(
+            initialSelectedDateMillis = convertirFechaAMillis(fechaSalida)
+        )
+    }
 
     var errorMessage by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
@@ -994,7 +1153,6 @@ fun DialogoEditarAsistenciaAdmin(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Turno
                 Text("Turno:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
@@ -1030,32 +1188,15 @@ fun DialogoEditarAsistenciaAdmin(
                     ) { Text("NOCHE / CRUZADO") }
                 }
 
-                // 1. Fecha de Entrada
                 Text("Fecha de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                ExposedDropdownMenuBox(
-                    expanded = expandedFechaEntrada,
-                    onExpandedChange = { if (!isSaving) expandedFechaEntrada = !expandedFechaEntrada }
-                ) {
-                    OutlinedTextField(
-                        value = fechaEntrada,
-                        onValueChange = {},
-                        readOnly = true,
-                        enabled = !isSaving,
-                        colors = miTextFieldColors(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaEntrada) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedFechaEntrada,
-                        onDismissRequest = { expandedFechaEntrada = false },
-                        modifier = Modifier.background(Color.White)
-                    ) {
-                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaEntrada = fechaAyer; expandedFechaEntrada = false })
-                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaEntrada = fechaHoy; expandedFechaEntrada = false })
+                CampoFechaAdmin(
+                    fecha = fechaEntrada,
+                    enabled = !isSaving,
+                    onClick = {
+                        expandedFechaEntrada = true
                     }
-                }
+                )
 
-                // 2. Hora de Entrada
                 Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = horaEntradaH, onValueChange = { horaEntradaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
@@ -1070,33 +1211,15 @@ fun DialogoEditarAsistenciaAdmin(
                     }
                 }
 
-                // 3. Fecha de Salida
                 Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                ExposedDropdownMenuBox(
-                    expanded = expandedFechaSalida,
-                    onExpandedChange = { if (!isSaving) expandedFechaSalida = !expandedFechaSalida }
-                ) {
-                    OutlinedTextField(
-                        value = fechaSalida,
-                        onValueChange = {},
-                        readOnly = true,
-                        enabled = !isSaving,
-                        colors = miTextFieldColors(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaSalida) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedFechaSalida,
-                        onDismissRequest = { expandedFechaSalida = false },
-                        modifier = Modifier.background(Color.White)
-                    ) {
-                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text("$fechaMañana (Mañana)") }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
+                CampoFechaAdmin(
+                    fecha = fechaSalida,
+                    enabled = !isSaving,
+                    onClick = {
+                        expandedFechaSalida = true
                     }
-                }
+                )
 
-                // 4. Hora de Salida
                 Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = horaSalidaH, onValueChange = { horaSalidaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
@@ -1111,7 +1234,6 @@ fun DialogoEditarAsistenciaAdmin(
                     }
                 }
 
-                // Estado
                 Text("Estado:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
                 ExposedDropdownMenuBox(
                     expanded = expandedEstado,
@@ -1153,8 +1275,12 @@ fun DialogoEditarAsistenciaAdmin(
                         try {
                             val db = FirebaseFirestore.getInstance()
 
-                            val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
-                            val horaEntradaCompleta = "$horaEntradaH:$horaEntradaM $ampmEntrada"
+                            // --- EDICIÓN DEL DOCUMENTO SELECCIONADO ---
+                            val textoHoraSalidaCompleta =
+                                "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+
+                            val horaEntradaCompleta =
+                                "$horaEntradaH:$horaEntradaM $ampmEntrada"
 
                             val cambios = mapOf(
                                 "fecha" to fechaEntrada.trim(),
@@ -1164,8 +1290,13 @@ fun DialogoEditarAsistenciaAdmin(
                                 "estado" to estadoRegistro
                             )
 
-                            db.collection("REGISTROS_ASISTENCIA").document(registro.idDoc).update(cambios).await()
+// Actualizar únicamente el documento seleccionado en Firebase.
+                            db.collection("REGISTROS_ASISTENCIA")
+                                .document(registro.idDoc)
+                                .update(cambios)
+                                .await()
 
+// Actualizar la fila correspondiente en Google Sheets usando el mismo ID.
                             NetworkUtils.enviarRegistroASheetAndroid(
                                 nombreCompleto = detalle.nombreCompleto,
                                 fecha = fechaEntrada.trim(),
@@ -1173,7 +1304,7 @@ fun DialogoEditarAsistenciaAdmin(
                                 horaEntrada = horaEntradaCompleta,
                                 horaSalida = textoHoraSalidaCompleta,
                                 idRegistro = registro.idDoc,
-                                estado = "ACTIVO"
+                                estado = estadoRegistro
                             )
 
                             onActualizadoExitoso()
@@ -1201,6 +1332,52 @@ fun DialogoEditarAsistenciaAdmin(
             }
         }
     )
+
+    if (expandedFechaEntrada) {
+        DatePickerDialog(
+            onDismissRequest = { expandedFechaEntrada = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerEntrada.selectedDateMillis?.let {
+                        fechaEntrada = convertirMillisAFecha(it)
+                    }
+                    expandedFechaEntrada = false
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { expandedFechaEntrada = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerEntrada)
+        }
+    }
+
+    if (expandedFechaSalida) {
+        DatePickerDialog(
+            onDismissRequest = { expandedFechaSalida = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerSalida.selectedDateMillis?.let {
+                        fechaSalida = convertirMillisAFecha(it)
+                    }
+                    expandedFechaSalida = false
+                }) {
+                    Text("Aceptar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { expandedFechaSalida = false }) {
+                    Text("Cancelar")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerSalida)
+        }
+    }
 }
 
 @Composable

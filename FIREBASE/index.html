@@ -710,7 +710,7 @@
     }
 
     window.abrirModalNuevoRegistroAdmin = function() {
-        const fechas = obtenerFechasCalculadas();
+        const hoyIso = new Date().toISOString().split('T')[0];
         const box = document.getElementById('modal-content-box');
         box.innerHTML = `
             <h3 class="text-lg font-bold mb-4 text-[#1976D2]">Nuevo Registro Manual (Admin)</h3>
@@ -734,18 +734,11 @@
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de Entrada</label>
-                        <select id="admin-fecha-entrada" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                            <option value="${fechas.hoy}">${fechas.hoy} (Hoy)</option>
-                            <option value="${fechas.ayer}">${fechas.ayer} (Ayer)</option>
-                        </select>
+                        <input type="date" id="admin-fecha-entrada" value="${hoyIso}" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:border-[#1976D2]">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de Salida</label>
-                        <select id="admin-fecha-salida" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                            <option value="${fechas.hoy}">${fechas.hoy} (Hoy)</option>
-                            <option value="${fechas.ayer}">${fechas.ayer} (Ayer)</option>
-                            <option value="${fechas.manana}">${fechas.manana} (Mañana)</option>
-                        </select>
+                        <input type="date" id="admin-fecha-salida" value="${hoyIso}" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:border-[#1976D2]">
                     </div>
                 </div>
 
@@ -785,18 +778,22 @@
         const btnNoche = document.getElementById('btn-admin-turno-noche');
         const selEntrada = document.getElementById('admin-fecha-entrada');
         const selSalida = document.getElementById('admin-fecha-salida');
-        const fechas = obtenerFechasCalculadas();
+
+        const dHoy = new Date();
+        const dAy = new Date();
+        dAy.setDate(dHoy.getDate() - 1);
+        const formatIso = (d) => d.toISOString().split('T')[0];
 
         if (turno === 'DIA') {
             btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
             btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
-            selEntrada.value = fechas.hoy;
-            selSalida.value = fechas.hoy;
+            if(selEntrada) selEntrada.value = formatIso(dHoy);
+            if(selSalida) selSalida.value = formatIso(dHoy);
         } else {
             btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
             btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
-            selEntrada.value = fechas.ayer;
-            selSalida.value = fechas.hoy;
+            if(selEntrada) selEntrada.value = formatIso(dAy);
+            if(selSalida) selSalida.value = formatIso(dHoy);
         }
     }
 
@@ -807,37 +804,117 @@
         }
     }
 
+    function convertirAFechaIso(fechaStr) {
+        if (!fechaStr || !fechaStr.includes('/')) return new Date().toISOString().split('T')[0];
+        const p = fechaStr.split('/');
+        if (p.length !== 3) return new Date().toISOString().split('T')[0];
+        return `${p[2]}-${p[1]}-${p[0]}`;
+    }
+
+    function convertirAFormatoLocal(isoStr) {
+        if (!isoStr || !isoStr.includes('-')) return isoStr;
+        const p = isoStr.split('-');
+        if (p.length !== 3) return isoStr;
+        return `${p[2]}/${p[1]}/${p[0]}`;
+    }
+
     window.guardarRegistroAdminWeb = async function() {
         const cod = document.getElementById('admin-sel-colab').value;
         if(!cod) {
             alert("Seleccione un colaborador.");
             return;
         }
-        const fechaEntrada = document.getElementById('admin-fecha-entrada').value;
-        const fechaSalida = document.getElementById('admin-fecha-salida').value;
-        const turno = turnoSeleccionadoAdminWebActual;
-        const horaEntrada = document.getElementById('admin-entrada').value.trim() + " " + document.getElementById('admin-entrada-ampm').innerText;
-        const horaSalidaVal = document.getElementById('admin-salida').value.trim() + " " + document.getElementById('admin-salida-ampm').innerText;
 
-        // FORMATO CLAVE
-        const horaSalidaCompleta = `${horaSalidaVal} (Salida el ${fechaSalida})`;
+        const rawFechaEntrada = document.getElementById('admin-fecha-entrada').value;
+        const rawFechaSalida = document.getElementById('admin-fecha-salida').value;
+
+        if (!rawFechaEntrada || !rawFechaSalida) {
+            alert("Seleccione las fechas correctamente.");
+            return;
+        }
+
+        const fechaEntrada = convertirAFormatoLocal(rawFechaEntrada);
+        const fechaSalida = convertirAFormatoLocal(rawFechaSalida);
+        const turno = turnoSeleccionadoAdminWebActual;
+
+        const horaEntradaNum = document.getElementById('admin-entrada').value.trim();
+        const ampmEntrada = document.getElementById('admin-entrada-ampm').innerText;
+        const horaEntrada = horaEntradaNum + " " + ampmEntrada;
+
+        const horaSalidaNum = document.getElementById('admin-salida').value.trim();
+        const ampmSalida = document.getElementById('admin-salida-ampm').innerText;
+
+        const colabObj = cacheTodosUsuarios.find(u => (u.codigoColaborador || u.codColaborador) === cod);
+        const nombreCompleto = colabObj ? `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim() : cod;
+
+        let partesH = horaSalidaNum.split(":");
+        let hSal = parseInt(partesH[0]) || 0;
+        let mSal = parseInt(partesH[1]) || 0;
+        if (ampmSalida === "PM" && hSal !== 12) hSal += 12;
+        if (ampmSalida === "AM" && hSal === 12) hSal = 0;
+
+        const dtEntrada = new Date(rawFechaEntrada + "T00:00:00");
+        const dtSalida = new Date(rawFechaSalida + "T00:00:00");
+        const diffDias = (dtSalida - dtEntrada) / (1000 * 60 * 60 * 24);
+
+        const cruzaAlDiaSiguiente = diffDias > 0 || (diffDias === 0 && turno === "NOCHE" && (hSal > 8 || (hSal === 8 && mSal > 0)));
 
         setButtonLoading('btn-nra-save', true, 'Guardando...');
 
         try {
-            const docRef = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
-                codigoColaborador: cod,
-                fecha: fechaEntrada,
-                turno: turno,
-                horaEntrada: horaEntrada,
-                horaSalida: horaSalidaCompleta,
-                estado: "COMPLETO"
-            });
+            if (turno === "NOCHE" && cruzaAlDiaSiguiente) {
+                let fechaSalidaReal = fechaSalida;
+                let rawFechaSalidaReal = rawFechaSalida;
+                if (diffDias === 0) {
+                    let dNext = new Date(rawFechaEntrada + "T00:00:00");
+                    dNext.setDate(dNext.getDate() + 1);
+                    rawFechaSalidaReal = dNext.toISOString().split('T')[0];
+                    fechaSalidaReal = convertirAFormatoLocal(rawFechaSalidaReal);
+                }
 
-            const colabObj = cacheTodosUsuarios.find(u => (u.codigoColaborador || u.codColaborador) === cod);
-            const nombreCompleto = colabObj ? `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim() : cod;
+                // --- TRAMO 1: NOCHE (Hasta las 08:00 AM) ---
+                const horaCorteNoche = "08:00 AM";
+                const horaSalidaNocheCompleta = `${horaCorteNoche} (Salida el ${fechaSalidaReal})`;
 
-            enviarRegistroASheet(nombreCompleto, fechaEntrada, turno, horaEntrada, horaSalidaCompleta, docRef.id, "ACTIVO");
+                const docRef1 = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
+                    codigoColaborador: cod,
+                    fecha: fechaEntrada,
+                    turno: "NOCHE",
+                    horaEntrada: horaEntrada,
+                    horaSalida: horaSalidaNocheCompleta,
+                    estado: "COMPLETO"
+                });
+                await enviarRegistroASheet(nombreCompleto, fechaEntrada, "NOCHE", horaEntrada, horaSalidaNocheCompleta, docRef1.id, "ACTIVO");
+
+                // --- TRAMO 2: DÍA (Desde las 08:00 AM en adelante) ---
+                const horaInicioDia = "08:00 AM";
+                const horaSalidaFinalCompleta = `${horaSalidaNum} ${ampmSalida} (Salida el ${fechaSalidaReal})`;
+
+                const docRef2 = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
+                    codigoColaborador: cod,
+                    fecha: fechaSalidaReal,
+                    turno: "DIA",
+                    horaEntrada: horaInicioDia,
+                    horaSalida: horaSalidaFinalCompleta,
+                    estado: "COMPLETO"
+                });
+                await enviarRegistroASheet(nombreCompleto, fechaSalidaReal, "DIA", horaInicioDia, horaSalidaFinalCompleta, docRef2.id, "ACTIVO");
+
+            } else {
+                // --- REGISTRO NORMAL ---
+                const horaSalidaCompleta = `${horaSalidaNum} ${ampmSalida} (Salida el ${fechaSalida})`;
+
+                const docRef = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
+                    codigoColaborador: cod,
+                    fecha: fechaEntrada,
+                    turno: turno,
+                    horaEntrada: horaEntrada,
+                    horaSalida: horaSalidaCompleta,
+                    estado: "COMPLETO"
+                });
+
+                enviarRegistroASheet(nombreCompleto, fechaEntrada, turno, horaEntrada, horaSalidaCompleta, docRef.id, "ACTIVO");
+            }
 
             cerrarModalWeb();
             cargarDatosAdmin();
@@ -847,14 +924,68 @@
         }
     }
 
-    window.abrirModalEditarAdmin = function(r) {
-        const fechas = obtenerFechasCalculadas();
+    window.abrirModalEditarAdmin = async function(r) {
+        let fechaEntradaVal = convertirAFechaIso(r.fecha || "");
 
-        let fechaEntradaVal = r.fecha || fechas.hoy;
+
+        // Buscar si el registro seleccionado pertenece a un turno dividido.
+        const snapshot = await getDocs(collection(db, "REGISTROS_ASISTENCIA"));
+        const todosRegistros = [];
+
+        snapshot.forEach(d => {
+            const dato = d.data();
+            if (dato.codigoColaborador === r.codigoColaborador &&
+                dato.estado !== "ANULADO") {
+                todosRegistros.push({ idDoc: d.id, ...dato });
+            }
+        });
+
+        function obtenerFechaSalida(registro) {
+            const m = (registro.horaSalida || "").match(/Salida el (\d{2}\/\d{2}\/\d{4})/);
+            return m ? m[1] : "";
+        }
+
+        let principal = null;
+        let segundo = null;
+
+        // Si seleccionaron el tramo DIA, buscar su tramo NOCHE anterior.
+        if (r.turno === "DIA" && (r.horaEntrada || "").trim() === "08:00 AM") {
+            const candidatos = todosRegistros.filter(x =>
+                x.turno === "NOCHE" &&
+                obtenerFechaSalida(x) === r.fecha
+            );
+
+            if (candidatos.length === 1) {
+                principal = candidatos[0];
+                segundo = r;
+            } else if (candidatos.length > 1) {
+                alert("Hay varios registros NOCHE que podrían relacionarse con este tramo. No se puede determinar cuál corresponde.");
+                return;
+            }
+        }
+
+        // Si seleccionaron el tramo NOCHE, buscar su tramo DIA.
+        if (!principal && r.turno === "NOCHE") {
+            const candidatos = todosRegistros.filter(x =>
+                x.idDoc !== r.idDoc &&
+                x.turno === "DIA" &&
+                x.fecha === obtenerFechaSalida(r) &&
+                (x.horaEntrada || "").trim() === "08:00 AM"
+            );
+
+            if (candidatos.length === 1) {
+                principal = r;
+                segundo = candidatos[0];
+            } else if (candidatos.length > 1) {
+                alert("Hay varios tramos DIA posibles. No se puede determinar cuál corresponde.");
+                return;
+            }
+        }
+
         let turnoVal = r.turno || "DIA";
 
         let matchSalida = (r.horaSalida || "").match(/Salida el (\d{2}\/\d{2}\/\d{4})/);
-        let fechaSalidaVal = matchSalida ? matchSalida[1] : fechaEntradaVal;
+        let fechaSalidaVal = matchSalida ? convertirAFechaIso(matchSalida[1]) : fechaEntradaVal;
 
         let partesEnt = (r.horaEntrada || "").split(" ");
         let horaEntPura = partesEnt[0] || "08:00";
@@ -863,7 +994,6 @@
         let hhEnt = partesHoraEnt[0] || "08";
         let mmEnt = partesHoraEnt[1] || "00";
 
-        // Extraer limpiamente hora y am/pm de la salida existente
         let horaSalidaPuraStr = r.horaSalida || "";
         let partesSal = horaSalidaPuraStr.split(" ");
         let horaSalPura = partesSal[0] || "05:00";
@@ -889,18 +1019,11 @@
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de Entrada</label>
-                        <select id="edit-admin-fecha-entrada" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                            <option value="${fechas.hoy}" ${fechaEntradaVal === fechas.hoy ? 'selected' : ''}>${fechas.hoy} (Hoy)</option>
-                            <option value="${fechas.ayer}" ${fechaEntradaVal === fechas.ayer ? 'selected' : ''}>${fechas.ayer} (Ayer)</option>
-                        </select>
+                        <input type="date" id="edit-admin-fecha-entrada" value="${fechaEntradaVal}" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:border-[#1976D2]">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de Salida</label>
-                        <select id="edit-admin-fecha-salida" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                            <option value="${fechas.hoy}" ${fechaSalidaVal === fechas.hoy ? 'selected' : ''}>${fechas.hoy} (Hoy)</option>
-                            <option value="${fechas.ayer}" ${fechaSalidaVal === fechas.ayer ? 'selected' : ''}>${fechas.ayer} (Ayer)</option>
-                            <option value="${fechas.manana}" ${fechaSalidaVal === fechas.manana ? 'selected' : ''}>${fechas.manana} (Mañana)</option>
-                        </select>
+                        <input type="date" id="edit-admin-fecha-salida" value="${fechaSalidaVal}" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:border-[#1976D2]">
                     </div>
                 </div>
 
@@ -952,30 +1075,42 @@
         const btnNoche = document.getElementById('btn-edit-admin-turno-noche');
         const selEntrada = document.getElementById('edit-admin-fecha-entrada');
         const selSalida = document.getElementById('edit-admin-fecha-salida');
-        const fechas = obtenerFechasCalculadas();
+
+        const dHoy = new Date();
+        const dAy = new Date();
+        dAy.setDate(dHoy.getDate() - 1);
+        const formatIso = (d) => d.toISOString().split('T')[0];
 
         if (turno === 'DIA') {
             btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
             btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
-            selEntrada.value = fechas.hoy;
-            selSalida.value = fechas.hoy;
+            if(selEntrada) selEntrada.value = formatIso(dHoy);
+            if(selSalida) selSalida.value = formatIso(dHoy);
         } else {
             btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
             btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
-            selEntrada.value = fechas.ayer;
-            selSalida.value = fechas.hoy;
+            if(selEntrada) selEntrada.value = formatIso(dAy);
+            if(selSalida) selSalida.value = formatIso(dHoy);
         }
     }
 
+
+
+
     window.actualizarRegistroAdmin = async function(idDoc, codColab) {
-        let btnDiaEl = document.getElementById('btn-edit-admin-turno-dia');
-        let turno = "DIA";
-        if(btnDiaEl) {
-            turno = btnDiaEl.classList.contains('bg-[#E3F2FD]') ? "DIA" : "NOCHE";
+        const rawFechaEntrada = document.getElementById('edit-admin-fecha-entrada').value.trim();
+        const rawFechaSalida = document.getElementById('edit-admin-fecha-salida').value.trim();
+
+        if (!rawFechaEntrada || !rawFechaSalida) {
+            alert("Seleccione las fechas correctamente.");
+            return;
         }
 
-        const fechaEntrada = document.getElementById('edit-admin-fecha-entrada').value.trim();
-        const fechaSalida = document.getElementById('edit-admin-fecha-salida').value.trim();
+        const fechaEntrada = convertirAFormatoLocal(rawFechaEntrada);
+        const fechaSalida = convertirAFormatoLocal(rawFechaSalida);
+
+        const btnDiaEl = document.getElementById('btn-edit-admin-turno-dia');
+        const turno = btnDiaEl && btnDiaEl.classList.contains('bg-[#E3F2FD]') ? "DIA" : "NOCHE";
 
         const entH = document.getElementById('edit-admin-ent-h').value.trim();
         const entM = document.getElementById('edit-admin-ent-m').value.trim();
@@ -987,14 +1122,40 @@
         const salAmPm = document.getElementById('edit-admin-sal-ampm').innerText;
         const horaSalidaVal = `${salH}:${salM} ${salAmPm}`;
 
-        // CORRECCIÓN CLAVE AQUÍ: Se incluye correctamente la fecha de salida en el formato de texto completo
-        const horaSalidaCompleta = `${horaSalidaVal} (Salida el ${fechaSalida})`;
-
         const estado = document.getElementById('edit-admin-estado').value.trim().toUpperCase();
 
+        const dtEntrada = new Date(rawFechaEntrada + "T00:00:00");
+        const dtSalida = new Date(rawFechaSalida + "T00:00:00");
+
+        const diffDias = Math.round((dtSalida - dtEntrada) / 86400000);
+
+        if (diffDias < 0) {
+            alert("La fecha de salida no puede ser anterior a la fecha de entrada.");
+            return;
+        }
+
+        if (!/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(horaEntrada) ||
+            !/^\d{1,2}:\d{2}\s*(AM|PM)$/i.test(horaSalidaVal)) {
+            alert("Verifique las horas de entrada y salida.");
+            return;
+        }
+
+        const horaSalidaCompleta = `${horaSalidaVal} (Salida el ${fechaSalida})`;
+
+        const colabObj = cacheTodosUsuarios.find(u =>
+            (u.codigoColaborador || u.codColaborador) === codColab
+        );
+
+        const nombreCompleto = colabObj
+            ? `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim()
+            : codColab;
+
         setButtonLoading('btn-era-save', true, 'Actualizando...');
+
         try {
+            // Actualizar exclusivamente el documento seleccionado.
             await updateDoc(doc(db, "REGISTROS_ASISTENCIA", idDoc), {
+                codigoColaborador: codColab,
                 fecha: fechaEntrada,
                 turno: turno,
                 horaEntrada: horaEntrada,
@@ -1002,18 +1163,27 @@
                 estado: estado
             });
 
-            const colabObj = cacheTodosUsuarios.find(u => (u.codigoColaborador || u.codColaborador) === codColab);
-            const nombreCompleto = colabObj ? `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim() : codColab;
-
-            enviarRegistroASheet(nombreCompleto, fechaEntrada, turno, horaEntrada, horaSalidaCompleta, idDoc, "ACTIVO");
+            // Actualizar exclusivamente su fila en Google Sheets.
+            await enviarRegistroASheet(
+                nombreCompleto,
+                fechaEntrada,
+                turno,
+                horaEntrada,
+                horaSalidaCompleta,
+                idDoc,
+                estado === "ANULADO" ? "ANULADO" : "ACTIVO"
+            );
 
             cerrarModalWeb();
-            cargarDatosAdmin();
+            await cargarDatosAdmin();
+
         } catch(e) {
+            console.error("Error al actualizar registro:", e);
             alert("Error al actualizar: " + e.message);
             setButtonLoading('btn-era-save', false, 'Actualizar');
         }
     }
+
 
     window.abrirModalEliminarWeb = function(idDoc, codColab, fecha, turno, horaEntrada, horaSalida) {
         const box = document.getElementById('modal-content-box');
@@ -1104,8 +1274,9 @@
         renderizarListaColaborador(semanaSeleccionadaColab);
     }
 
-    window.enviarRegistroASheet = function(nombreCompleto, fecha, turno, horaEntrada, horaSalida, idRegistro, estado = "ACTIVO") {
+    window.enviarRegistroASheet = async function(nombreCompleto, fecha, turno, horaEntrada, horaSalida, idRegistro, estado = "ACTIVO") {
         const scriptURL = 'https://script.google.com/macros/s/AKfycbyQRYAFptY9mLS-xYJbO2qkg5i5ZtxmSsd9fuvyjEZ6qC-WRg-eFm-kGbZ6sYVYiU3j/exec';
+
         const formData = new FormData();
         formData.append('nombreCompleto', nombreCompleto);
         formData.append('fecha', fecha);
@@ -1115,7 +1286,18 @@
         formData.append('idRegistro', idRegistro);
         formData.append('estado', estado);
 
-        fetch(scriptURL, { method: 'POST', body: formData }).catch(error => console.error('Error sincronizando con Sheet:', error));
+        try {
+            await fetch(scriptURL, {
+                method: 'POST',
+                body: formData,
+                mode: 'no-cors'
+            });
+
+            return true;
+        } catch (error) {
+            console.error('Error sincronizando con Sheet:', error);
+            return false;
+        }
     }
 
     window.cambiarSemanaColab = function(sem) {
@@ -1236,28 +1418,95 @@
     }
 
     window.guardarRegistroWeb = async function() {
-        const fechaEntrada = document.getElementById('web-fecha-entrada').value;
-        const fechaSalida = document.getElementById('web-fecha-salida').value;
-        const turno = turnoSeleccionadoWebActual;
-        const horaEntrada = document.getElementById('web-entrada').value.trim() + " " + document.getElementById('web-ent-ampm').innerText;
-        const horaSalidaVal = document.getElementById('web-salida').value.trim() + " " + document.getElementById('web-sal-ampm').innerText;
+        const rawFechaEntrada = document.getElementById('web-fecha-entrada').value;
+        const rawFechaSalida = document.getElementById('web-fecha-salida').value;
 
-        const horaSalidaCompleta = `${horaSalidaVal} (Salida el ${fechaSalida})`;
+        if (!rawFechaEntrada || !rawFechaSalida) {
+            alert("Seleccione las fechas correctamente.");
+            return;
+        }
+
+        const fechaEntrada = convertirAFormatoLocal(rawFechaEntrada);
+        const fechaSalida = convertirAFormatoLocal(rawFechaSalida);
+        const turno = turnoSeleccionadoWebActual;
+
+        const horaEntradaNum = document.getElementById('web-entrada').value.trim();
+        const ampmEntrada = document.getElementById('web-ent-ampm').innerText;
+        const horaEntrada = horaEntradaNum + " " + ampmEntrada;
+
+        const horaSalidaNum = document.getElementById('web-salida').value.trim();
+        const ampmSalida = document.getElementById('web-sal-ampm').innerText;
+
         const cod = usuarioActualGlobal.codigoColaborador || usuarioActualGlobal.codColaborador || usuarioActualGlobal.codigo;
+        const nombreCompleto = `${usuarioActualGlobal.nombres || usuarioActualGlobal.nombre || ''} ${usuarioActualGlobal.apellidos || ''}`.trim();
+
+        let partesH = horaSalidaNum.split(":");
+        let hSal = parseInt(partesH[0]) || 0;
+        let mSal = parseInt(partesH[1]) || 0;
+        if (ampmSalida === "PM" && hSal !== 12) hSal += 12;
+        if (ampmSalida === "AM" && hSal === 12) hSal = 0;
+
+        const dtEntrada = new Date(rawFechaEntrada + "T00:00:00");
+        const dtSalida = new Date(rawFechaSalida + "T00:00:00");
+        const diffDias = (dtSalida - dtEntrada) / (1000 * 60 * 60 * 24);
+
+        const cruzaAlDiaSiguiente = diffDias > 0 || (diffDias === 0 && turno === "NOCHE" && (hSal > 8 || (hSal === 8 && mSal > 0)));
 
         setButtonLoading('btn-nrc-save', true, 'Guardando...');
         try {
-            const docRef = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
-                codigoColaborador: cod,
-                fecha: fechaEntrada,
-                turno: turno,
-                horaEntrada: horaEntrada,
-                horaSalida: horaSalidaCompleta,
-                estado: "COMPLETO"
-            });
+            if (turno === "NOCHE" && cruzaAlDiaSiguiente) {
+                let fechaSalidaReal = fechaSalida;
+                let rawFechaSalidaReal = rawFechaSalida;
+                if (diffDias === 0) {
+                    let dNext = new Date(rawFechaEntrada + "T00:00:00");
+                    dNext.setDate(dNext.getDate() + 1);
+                    rawFechaSalidaReal = dNext.toISOString().split('T')[0];
+                    fechaSalidaReal = convertirAFormatoLocal(rawFechaSalidaReal);
+                }
 
-            const nombreCompleto = `${usuarioActualGlobal.nombres || usuarioActualGlobal.nombre || ''} ${usuarioActualGlobal.apellidos || ''}`.trim();
-            enviarRegistroASheet(nombreCompleto, fechaEntrada, turno, horaEntrada, horaSalidaCompleta, docRef.id, "ACTIVO");
+                // --- TRAMO 1: NOCHE (Hasta las 08:00 AM) ---
+                const horaCorteNoche = "08:00 AM";
+                const horaSalidaNocheCompleta = `${horaCorteNoche} (Salida el ${fechaSalidaReal})`;
+
+                const docRef1 = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
+                    codigoColaborador: cod,
+                    fecha: fechaEntrada,
+                    turno: "NOCHE",
+                    horaEntrada: horaEntrada,
+                    horaSalida: horaSalidaNocheCompleta,
+                    estado: "COMPLETO"
+                });
+                await enviarRegistroASheet(nombreCompleto, fechaEntrada, "NOCHE", horaEntrada, horaSalidaNocheCompleta, docRef1.id, "ACTIVO");
+
+                // --- TRAMO 2: DÍA (Desde las 08:00 AM en adelante) ---
+                const horaInicioDia = "08:00 AM";
+                const horaSalidaFinalCompleta = `${horaSalidaNum} ${ampmSalida} (Salida el ${fechaSalidaReal})`;
+
+                const docRef2 = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
+                    codigoColaborador: cod,
+                    fecha: fechaSalidaReal,
+                    turno: "DIA",
+                    horaEntrada: horaInicioDia,
+                    horaSalida: horaSalidaFinalCompleta,
+                    estado: "COMPLETO"
+                });
+                await enviarRegistroASheet(nombreCompleto, fechaSalidaReal, "DIA", horaInicioDia, horaSalidaFinalCompleta, docRef2.id, "ACTIVO");
+
+            } else {
+                // --- REGISTRO NORMAL ---
+                const horaSalidaCompleta = `${horaSalidaNum} ${ampmSalida} (Salida el ${fechaSalida})`;
+
+                const docRef = await addDoc(collection(db, "REGISTROS_ASISTENCIA"), {
+                    codigoColaborador: cod,
+                    fecha: fechaEntrada,
+                    turno: turno,
+                    horaEntrada: horaEntrada,
+                    horaSalida: horaSalidaCompleta,
+                    estado: "COMPLETO"
+                });
+
+                enviarRegistroASheet(nombreCompleto, fechaEntrada, turno, horaEntrada, horaSalidaCompleta, docRef.id, "ACTIVO");
+            }
 
             cerrarModalWeb();
             cargarDatosColaboradorWeb(usuarioActualGlobal);
