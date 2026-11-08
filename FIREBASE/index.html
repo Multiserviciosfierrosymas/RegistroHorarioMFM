@@ -719,7 +719,10 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Seleccionar Colaborador</label>
                     <select id="admin-sel-colab" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
                         <option value="" disabled selected>- Seleccionar -</option>
-                        ${cacheTodosUsuarios.map(u => `<option value="${u.codigoColaborador || u.codColaborador}">${(u.nombres || u.nombre || '')} ${(u.apellidos || '')} (${u.codigoColaborador || u.codColaborador || 'S/C'})</option>`).join('')}
+                        ${cacheTodosUsuarios.map(u => {
+                            const codigo = u.codigoColaborador || u.codColaborador || u.codigo || '';
+                            return `<option value="${codigo}">${(u.nombres || u.nombre || '')} ${(u.apellidos || '')} (${codigo || 'S/C'})</option>`;
+                        }).join('')}
                     </select>
                 </div>
 
@@ -736,7 +739,7 @@
                         <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de Entrada</label>
                         <input type="date" id="admin-fecha-entrada" value="${hoyIso}" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:border-[#1976D2]">
                     </div>
-                    <div>
+                    <div id="admin-contenedor-fecha-salida" class="hidden">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de Salida</label>
                         <input type="date" id="admin-fecha-salida" value="${hoyIso}" class="w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:border-[#1976D2]">
                     </div>
@@ -753,7 +756,7 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Hora Salida HH:MM</label>
                         <div class="flex items-center border rounded-lg overflow-hidden bg-white">
-                            <input type="text" id="admin-salida" value="05:00" class="w-full px-1 py-2 text-sm text-center focus:outline-none">
+                            <input type="text" id="admin-salida" value="06:00" class="w-full px-1 py-2 text-sm text-center focus:outline-none">
                             <button type="button" onclick="toggleAmPm('admin-salida-ampm')" id="admin-salida-ampm" class="px-2 py-2 bg-gray-100 text-[#1976D2] font-bold text-xs border-l hover:bg-gray-200">PM</button>
                         </div>
                     </div>
@@ -778,6 +781,7 @@
         const btnNoche = document.getElementById('btn-admin-turno-noche');
         const selEntrada = document.getElementById('admin-fecha-entrada');
         const selSalida = document.getElementById('admin-fecha-salida');
+        const contenedorSalida = document.getElementById('admin-contenedor-fecha-salida');
 
         const dHoy = new Date();
         const dAy = new Date();
@@ -785,11 +789,13 @@
         const formatIso = (d) => d.toISOString().split('T')[0];
 
         if (turno === 'DIA') {
+            if (contenedorSalida) contenedorSalida.classList.add('hidden');
             btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
             btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
             if(selEntrada) selEntrada.value = formatIso(dHoy);
             if(selSalida) selSalida.value = formatIso(dHoy);
         } else {
+            if (contenedorSalida) contenedorSalida.classList.remove('hidden');
             btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
             btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
             if(selEntrada) selEntrada.value = formatIso(dAy);
@@ -820,13 +826,21 @@
 
     window.guardarRegistroAdminWeb = async function() {
         const cod = document.getElementById('admin-sel-colab').value;
-        if(!cod) {
-            alert("Seleccione un colaborador.");
+        const colabObj = cacheTodosUsuarios.find(u =>
+            (u.codigoColaborador || u.codColaborador || u.codigo) === cod
+        );
+
+        if (!cod || !colabObj || cod === "S/C" || cod === "SIN-CODIGO") {
+            alert("Debe seleccionar un colaborador que tenga un código válido.");
             return;
         }
 
         const rawFechaEntrada = document.getElementById('admin-fecha-entrada').value;
-        const rawFechaSalida = document.getElementById('admin-fecha-salida').value;
+        const turno = turnoSeleccionadoAdminWebActual;
+
+        const rawFechaSalida = turno === "DIA"
+            ? rawFechaEntrada
+            : document.getElementById('admin-fecha-salida').value;
 
         if (!rawFechaEntrada || !rawFechaSalida) {
             alert("Seleccione las fechas correctamente.");
@@ -835,7 +849,6 @@
 
         const fechaEntrada = convertirAFormatoLocal(rawFechaEntrada);
         const fechaSalida = convertirAFormatoLocal(rawFechaSalida);
-        const turno = turnoSeleccionadoAdminWebActual;
 
         const horaEntradaNum = document.getElementById('admin-entrada').value.trim();
         const ampmEntrada = document.getElementById('admin-entrada-ampm').innerText;
@@ -844,8 +857,8 @@
         const horaSalidaNum = document.getElementById('admin-salida').value.trim();
         const ampmSalida = document.getElementById('admin-salida-ampm').innerText;
 
-        const colabObj = cacheTodosUsuarios.find(u => (u.codigoColaborador || u.codColaborador) === cod);
-        const nombreCompleto = colabObj ? `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim() : cod;
+        const nombreCompleto =
+            `${colabObj.nombres || colabObj.nombre || ''} ${colabObj.apellidos || ''}`.trim();
 
         let partesH = horaSalidaNum.split(":");
         let hSal = parseInt(partesH[0]) || 0;
@@ -1352,7 +1365,7 @@
                             <option value="${fechas.ayer}">${fechas.ayer} (Ayer)</option>
                         </select>
                     </div>
-                    <div>
+                    <div id="web-contenedor-fecha-salida" class="hidden">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Fecha de Salida</label>
                         <select id="web-fecha-salida" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
                             <option value="${fechas.hoy}">${fechas.hoy} (Hoy)</option>
@@ -1373,7 +1386,7 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Hora Salida HH:MM</label>
                         <div class="flex items-center border rounded-lg overflow-hidden bg-white">
-                            <input type="text" id="web-salida" value="05:00" class="w-full px-1 py-2 text-sm text-center focus:outline-none">
+                            <input type="text" id="web-salida" value="06:00" class="w-full px-1 py-2 text-sm text-center focus:outline-none">
                             <button type="button" onclick="toggleAmPm('web-sal-ampm')" id="web-sal-ampm" class="px-2 py-2 bg-gray-100 text-[#1976D2] font-bold text-xs border-l hover:bg-gray-200">PM</button>
                         </div>
                     </div>
@@ -1398,14 +1411,17 @@
         const btnNoche = document.getElementById('btn-turno-noche');
         const selEntrada = document.getElementById('web-fecha-entrada');
         const selSalida = document.getElementById('web-fecha-salida');
+        const contenedorSalida = document.getElementById('web-contenedor-fecha-salida');
         const fechas = obtenerFechasCalculadas();
 
         if (turno === 'DIA') {
+            if (contenedorSalida) contenedorSalida.classList.add('hidden');
             btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
             btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
             selEntrada.value = fechas.hoy;
             selSalida.value = fechas.hoy;
         } else {
+            if (contenedorSalida) contenedorSalida.classList.remove('hidden');
             btnNoche.className = "py-2 rounded-lg font-bold text-sm border transition bg-[#E3F2FD] text-[#1976D2] border-[#1976D2]";
             btnDia.className = "py-2 rounded-lg font-bold text-sm border transition bg-white text-gray-500 border-gray-300";
             selEntrada.value = fechas.ayer;
@@ -1419,7 +1435,11 @@
 
     window.guardarRegistroWeb = async function() {
         const rawFechaEntrada = document.getElementById('web-fecha-entrada').value;
-        const rawFechaSalida = document.getElementById('web-fecha-salida').value;
+        const turno = turnoSeleccionadoWebActual;
+
+        const rawFechaSalida = turno === "DIA"
+            ? rawFechaEntrada
+            : document.getElementById('web-fecha-salida').value;
 
         if (!rawFechaEntrada || !rawFechaSalida) {
             alert("Seleccione las fechas correctamente.");
@@ -1428,7 +1448,17 @@
 
         const fechaEntrada = convertirAFormatoLocal(rawFechaEntrada);
         const fechaSalida = convertirAFormatoLocal(rawFechaSalida);
-        const turno = turnoSeleccionadoWebActual;
+
+        const cod = usuarioActualGlobal
+            ? (usuarioActualGlobal.codigoColaborador ||
+               usuarioActualGlobal.codColaborador ||
+               usuarioActualGlobal.codigo || "")
+            : "";
+
+        if (!cod || cod === "S/C" || cod === "SIN-CODIGO") {
+            alert("No se encontró un código de colaborador válido. No se puede registrar la asistencia.");
+            return;
+        }
 
         const horaEntradaNum = document.getElementById('web-entrada').value.trim();
         const ampmEntrada = document.getElementById('web-ent-ampm').innerText;
@@ -1437,8 +1467,8 @@
         const horaSalidaNum = document.getElementById('web-salida').value.trim();
         const ampmSalida = document.getElementById('web-sal-ampm').innerText;
 
-        const cod = usuarioActualGlobal.codigoColaborador || usuarioActualGlobal.codColaborador || usuarioActualGlobal.codigo;
-        const nombreCompleto = `${usuarioActualGlobal.nombres || usuarioActualGlobal.nombre || ''} ${usuarioActualGlobal.apellidos || ''}`.trim();
+        const nombreCompleto =
+            `${usuarioActualGlobal.nombres || usuarioActualGlobal.nombre || ''} ${usuarioActualGlobal.apellidos || ''}`.trim();
 
         let partesH = horaSalidaNum.split(":");
         let hSal = parseInt(partesH[0]) || 0;
@@ -1446,8 +1476,8 @@
         if (ampmSalida === "PM" && hSal !== 12) hSal += 12;
         if (ampmSalida === "AM" && hSal === 12) hSal = 0;
 
-        const dtEntrada = new Date(rawFechaEntrada + "T00:00:00");
-        const dtSalida = new Date(rawFechaSalida + "T00:00:00");
+        const dtEntrada = new Date(convertirAFechaIso(rawFechaEntrada) + "T00:00:00");
+        const dtSalida = new Date(convertirAFechaIso(rawFechaSalida) + "T00:00:00");
         const diffDias = (dtSalida - dtEntrada) / (1000 * 60 * 60 * 24);
 
         const cruzaAlDiaSiguiente = diffDias > 0 || (diffDias === 0 && turno === "NOCHE" && (hSal > 8 || (hSal === 8 && mSal > 0)));

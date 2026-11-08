@@ -232,8 +232,6 @@ fun verificarActualizacionFirebase(context: Context) {
                     pInfo.versionCode
                 }
 
-                Toast.makeText(context, "Remoto: $versionCodeRemoto | Actual: $versionCodeActual", Toast.LENGTH_SHORT).show()
-
                 if (versionCodeRemoto > versionCodeActual && urlApk.isNotEmpty()) {
                     mostrarDialogoActualizacion(context, mensaje, urlApk)
                 }
@@ -252,7 +250,6 @@ private fun mostrarDialogoActualizacion(context: Context, mensaje: String, urlAp
         .setPositiveButton("Actualizar") { _, _ ->
             descargarEInstalarApk(context, urlApk)
         }
-        .setNegativeButton("Más tarde", null)
         .show()
 }
 

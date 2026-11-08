@@ -662,7 +662,7 @@ fun DialogoNuevoRegistro(
     var ampmEntrada by remember { mutableStateOf("AM") }
     var expandedAmPmEntrada by remember { mutableStateOf(false) }
 
-    var horaSalidaH by remember { mutableStateOf("05") }
+    var horaSalidaH by remember { mutableStateOf("06") }
     var horaSalidaM by remember { mutableStateOf("00") }
     var ampmSalida by remember { mutableStateOf("PM") }
     var expandedAmPmSalida by remember { mutableStateOf(false) }
@@ -670,6 +670,7 @@ fun DialogoNuevoRegistro(
     var errorMessage by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     AlertDialog(
         containerColor = Color.White,
@@ -770,14 +771,16 @@ fun DialogoNuevoRegistro(
                     }
                 }
 
-                Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                CampoFechaAdmin(
-                    fecha = fechaSalida,
-                    enabled = !isSaving,
-                    onClick = {
-                        expandedFechaSalida = true
-                    }
-                )
+                if (turnoSeleccionado == "NOCHE") {
+                    Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
+                    CampoFechaAdmin(
+                        fecha = fechaSalida,
+                        enabled = !isSaving,
+                        onClick = {
+                            expandedFechaSalida = true
+                        }
+                    )
+                }
 
                 Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -802,12 +805,24 @@ fun DialogoNuevoRegistro(
             Button(
                 onClick = {
                     val colab = colaboradorSeleccionado
-                    if (colab == null) {
-                        errorMessage = "Seleccione un colaborador."
+
+                    if (colab == null || colab.codigoColaborador.isBlank()) {
+                        errorMessage = "Debe seleccionar un colaborador para registrar."
+                        Toast.makeText(
+                            context,
+                            "Debe seleccionar un colaborador para registrar.",
+                            Toast.LENGTH_LONG
+                        ).show()
                         return@Button
                     }
-                    if (fechaEntrada.isBlank() || fechaSalida.isBlank()) {
-                        errorMessage = "Seleccione las fechas correctamente."
+
+                    if (fechaEntrada.isBlank()) {
+                        errorMessage = "Seleccione la fecha de entrada."
+                        return@Button
+                    }
+
+                    if (turnoSeleccionado == "NOCHE" && fechaSalida.isBlank()) {
+                        errorMessage = "Seleccione la fecha de salida."
                         return@Button
                     }
                     isSaving = true
@@ -868,7 +883,12 @@ fun DialogoNuevoRegistro(
                             } else {
                                 // --- REGISTRO NORMAL ---
                                 val fechaRegistroFinal = fechaEntrada.trim()
-                                val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+
+                                val textoHoraSalidaCompleta = if (turnoSeleccionado == "DIA") {
+                                    "$horaSalidaH:$horaSalidaM $ampmSalida"
+                                } else {
+                                    "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+                                }
 
                                 val nuevoRegistro = hashMapOf(
                                     "codigoColaborador" to colab.codigoColaborador,

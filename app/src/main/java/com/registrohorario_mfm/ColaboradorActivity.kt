@@ -390,7 +390,7 @@ fun DialogoNuevoRegistroColaborador(
     var ampmEntrada by remember { mutableStateOf("AM") }
     var expandedAmPmEntrada by remember { mutableStateOf(false) }
 
-    var horaSalidaH by remember { mutableStateOf("05") }
+    var horaSalidaH by remember { mutableStateOf("06") }
     var horaSalidaM by remember { mutableStateOf("00") }
     var ampmSalida by remember { mutableStateOf("PM") }
     var expandedAmPmSalida by remember { mutableStateOf(false) }
@@ -398,6 +398,7 @@ fun DialogoNuevoRegistroColaborador(
     var errorMessage by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     AlertDialog(
         containerColor = Color.White,
@@ -492,28 +493,54 @@ fun DialogoNuevoRegistroColaborador(
                     }
                 }
 
-                Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
-                ExposedDropdownMenuBox(
-                    expanded = expandedFechaSalida,
-                    onExpandedChange = { if (!isSaving) expandedFechaSalida = !expandedFechaSalida }
-                ) {
-                    OutlinedTextField(
-                        value = fechaSalida,
-                        onValueChange = {},
-                        readOnly = true,
-                        enabled = !isSaving,
-                        colors = colabTfColors(),
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaSalida) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
-                    )
-                    ExposedDropdownMenu(
+                if (turnoSeleccionado == "NOCHE") {
+                    Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
+
+                    ExposedDropdownMenuBox(
                         expanded = expandedFechaSalida,
-                        onDismissRequest = { expandedFechaSalida = false },
-                        modifier = Modifier.background(Color.White)
+                        onExpandedChange = {
+                            if (!isSaving) expandedFechaSalida = !expandedFechaSalida
+                        }
                     ) {
-                        DropdownMenuItem(text = { Text("$fechaAyer (Ayer)") }, onClick = { fechaSalida = fechaAyer; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text("$fechaHoy (Hoy)") }, onClick = { fechaSalida = fechaHoy; expandedFechaSalida = false })
-                        DropdownMenuItem(text = { Text("$fechaMañana (Mañana)") }, onClick = { fechaSalida = fechaMañana; expandedFechaSalida = false })
+                        OutlinedTextField(
+                            value = fechaSalida,
+                            onValueChange = {},
+                            readOnly = true,
+                            enabled = !isSaving,
+                            colors = colabTfColors(),
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFechaSalida)
+                            },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = expandedFechaSalida,
+                            onDismissRequest = { expandedFechaSalida = false },
+                            modifier = Modifier.background(Color.White)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("$fechaAyer (Ayer)") },
+                                onClick = {
+                                    fechaSalida = fechaAyer
+                                    expandedFechaSalida = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("$fechaHoy (Hoy)") },
+                                onClick = {
+                                    fechaSalida = fechaHoy
+                                    expandedFechaSalida = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("$fechaMañana (Mañana)") },
+                                onClick = {
+                                    fechaSalida = fechaMañana
+                                    expandedFechaSalida = false
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -539,8 +566,29 @@ fun DialogoNuevoRegistroColaborador(
         confirmButton = {
             Button(
                 onClick = {
-                    if (fechaEntrada.isBlank() || fechaSalida.isBlank()) {
+                    if (codigoColaborador.isBlank() || codigoColaborador == "SIN-CODIGO") {
+                        errorMessage = "No se encontró un código de colaborador válido."
+
+                        Toast.makeText(
+                            context,
+                            "No se encontró un código de colaborador válido.",
+                            Toast.LENGTH_LONG
+                        ).show()
+
+                        return@Button
+                    }
+
+                    if (fechaEntrada.isBlank() ||
+                        (turnoSeleccionado == "NOCHE" && fechaSalida.isBlank())) {
+
                         errorMessage = "Seleccione las fechas correctamente."
+
+                        Toast.makeText(
+                            context,
+                            "Seleccione las fechas correctamente.",
+                            Toast.LENGTH_LONG
+                        ).show()
+
                         return@Button
                     }
                     isSaving = true
@@ -548,11 +596,22 @@ fun DialogoNuevoRegistroColaborador(
                         try {
                             val db = FirebaseFirestore.getInstance()
 
-                            val esTurnoDobleOCruzoLargo = (turnoSeleccionado == "NOCHE" && fechaEntrada != fechaSalida && (ampmSalida == "PM" || (ampmSalida == "AM" && horaSalidaH.toInt() >= 8)))
+                            val fechaSalidaFinal = if (turnoSeleccionado == "DIA") {
+                                fechaEntrada
+                            } else {
+                                fechaSalida
+                            }
+
+                            val esTurnoDobleOCruzoLargo = (
+                                    turnoSeleccionado == "NOCHE" &&
+                                            fechaEntrada != fechaSalidaFinal &&
+                                            (ampmSalida == "PM" || (ampmSalida == "AM" && horaSalidaH.toInt() >= 8))
+                                    )
 
                             if (esTurnoDobleOCruzoLargo) {
+
                                 val horaCorteNoche = "08:00 AM"
-                                val textoSalidaNoche = "$horaCorteNoche (Salida el $fechaSalida)"
+                                val textoSalidaNoche = "$horaCorteNoche (Salida el $fechaSalidaFinal)"
 
                                 val regNoche = hashMapOf(
                                     "codigoColaborador" to codigoColaborador,
@@ -562,7 +621,9 @@ fun DialogoNuevoRegistroColaborador(
                                     "horaSalida" to textoSalidaNoche,
                                     "estado" to "COMPLETO"
                                 )
+
                                 val docRef1 = db.collection("REGISTROS_ASISTENCIA").add(regNoche).await()
+
                                 NetworkUtils.enviarRegistroASheetAndroid(
                                     nombreCompleto = nombreColaborador,
                                     fecha = fechaEntrada,
@@ -574,30 +635,35 @@ fun DialogoNuevoRegistroColaborador(
                                 )
 
                                 val horaInicioDia = "08:00 AM"
-                                val textoSalidaFinal = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+                                val textoSalidaDia = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalidaFinal)"
 
                                 val regDia = hashMapOf(
                                     "codigoColaborador" to codigoColaborador,
-                                    "fecha" to fechaSalida,
+                                    "fecha" to fechaSalidaFinal,
                                     "turno" to "DIA",
                                     "horaEntrada" to horaInicioDia,
-                                    "horaSalida" to textoSalidaFinal,
+                                    "horaSalida" to textoSalidaDia,
                                     "estado" to "COMPLETO"
                                 )
+
                                 val docRef2 = db.collection("REGISTROS_ASISTENCIA").add(regDia).await()
+
                                 NetworkUtils.enviarRegistroASheetAndroid(
                                     nombreCompleto = nombreColaborador,
-                                    fecha = fechaSalida,
+                                    fecha = fechaSalidaFinal,
                                     turno = "DIA",
                                     horaEntrada = horaInicioDia,
-                                    horaSalida = textoSalidaFinal,
+                                    horaSalida = textoSalidaDia,
                                     idRegistro = docRef2.id,
                                     estado = "ACTIVO"
                                 )
 
                             } else {
+
                                 val fechaRegistroFinal = fechaEntrada.trim()
-                                val textoHoraSalidaCompleta = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
+
+                                val textoHoraSalidaCompleta =
+                                    "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalidaFinal)"
 
                                 val nuevoRegistro = hashMapOf(
                                     "codigoColaborador" to codigoColaborador,
@@ -607,6 +673,7 @@ fun DialogoNuevoRegistroColaborador(
                                     "horaSalida" to textoHoraSalidaCompleta,
                                     "estado" to "COMPLETO"
                                 )
+
                                 val docRef = db.collection("REGISTROS_ASISTENCIA").add(nuevoRegistro).await()
 
                                 NetworkUtils.enviarRegistroASheetAndroid(
