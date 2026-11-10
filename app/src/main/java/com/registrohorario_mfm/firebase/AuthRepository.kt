@@ -15,14 +15,13 @@ class AuthRepository {
             val user = authResult.user ?: throw Exception("Usuario no encontrado")
             val userEmail = user.email ?: email
 
-            // 2. Buscar el rol en Firestore consultando por el correo electrónico
-            // (Soporta tanto el campo 'correo' como 'email')
-            var usuariosQuery = db.collection("USUARIOS")
+            // 2. Buscar el documento en la colección USUARIOS por correo o email
+            val usuariosQuery = db.collection("USUARIOS")
                 .whereEqualTo("correo", userEmail)
                 .get()
                 .await()
 
-            var userDoc = if (!usuariosQuery.isEmpty) {
+            val userDoc = if (!usuariosQuery.isEmpty) {
                 usuariosQuery.documents[0]
             } else {
                 db.collection("USUARIOS")
@@ -33,8 +32,13 @@ class AuthRepository {
                     .firstOrNull()
             }
 
-            val rol = userDoc?.getString("rol")?.uppercase() ?: "COLABORADOR"
-            Result.success(rol)
+            if (userDoc != null && userDoc.exists()) {
+                // Obtener el rol y asegurar que esté en mayúsculas (ej: "ADMIN" o "COLABORADOR")
+                val rol = userDoc.getString("rol")?.trim()?.uppercase() ?: "COLABORADOR"
+                Result.success(rol)
+            } else {
+                Result.failure(Exception("El usuario no está registrado en la base de datos de usuarios."))
+            }
 
         } catch (e: com.google.firebase.auth.FirebaseAuthInvalidUserException) {
             Result.failure(Exception("El correo electrónico no está registrado."))
