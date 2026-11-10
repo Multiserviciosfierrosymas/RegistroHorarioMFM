@@ -1,6 +1,5 @@
 package com.registrohorario_mfm
 
-import androidx.compose.material.icons.filled.Refresh
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -17,15 +16,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
@@ -124,8 +127,10 @@ fun ColaboradorScreen(onLogout: () -> Unit) {
 
     var isLoading by remember { mutableStateOf(true) }
     var mostrarModalNuevoRegistro by remember { mutableStateOf(false) }
+    var mostrarModalCambiarPassword by remember { mutableStateOf(false) }
     var expandedSemana by remember { mutableStateOf(false) }
 
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     val cargarDatosColaborador: () -> Unit = {
@@ -152,7 +157,11 @@ fun ColaboradorScreen(onLogout: () -> Unit) {
 
                         listaTodosMisRegistros = registrosList
                         val semanasSet = registrosList.map { calcularNumeroSemanaColab(it.fecha) }.toSet()
-                        semanasDisponibles = if (semanasSet.isNotEmpty()) semanasSet.sorted() else listOf(semanaActualGlobal)
+                        semanasDisponibles = if (semanasSet.isNotEmpty()) {
+                            semanasSet.sortedDescending()
+                        } else {
+                            listOf(semanaActualGlobal)
+                        }
                         if (!semanasDisponibles.contains(semanaSeleccionada)) {
                             semanaSeleccionada = semanasDisponibles.last()
                         }
@@ -170,170 +179,211 @@ fun ColaboradorScreen(onLogout: () -> Unit) {
         cargarDatosColaborador()
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            containerColor = ColabFondoGrisClaro,
-            topBar = {
-                TopAppBar(
-                    title = { Text("Panel de Colaborador", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.White,
-                        titleContentColor = ColabTextoOscuro
-                    ),
-                    actions = {
-                        IconButton(onClick = { cargarDatosColaborador() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Actualizar", tint = ColabAzulPrimario)
-                        }
-                        TextButton(onClick = onLogout) {
-                            Text("Cerrar Sesión", color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                )
-            },
-            floatingActionButton = {
-                if (codigoColaborador != "Cargando..." && codigoColaborador != "Error al cargar") {
-                    FloatingActionButton(
-                        onClick = { mostrarModalNuevoRegistro = true },
-                        containerColor = ColabAzulBotonFlotante,
-                        contentColor = Color.White,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Agregar Registro", modifier = Modifier.size(32.dp))
-                    }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(modifier = Modifier.width(280.dp)) {
+                Spacer(modifier = Modifier.height(24.dp))
+                // Cabecera del Menú Lateral
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Text(text = nombreColaborador, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ColabTextoOscuro)
+                    Spacer(modifier = Modifier.height(4.dp))
                 }
-            }
-        ) { paddingValues ->
-            Column(
-                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)
-            ) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(text = "Colaborador", fontSize = 12.sp, color = ColabTextoGris)
-                        Text(text = nombreColaborador, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ColabTextoOscuro)
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(text = "Mis Registros", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ColabTextoOscuro)
+                // Opción: Cambiar Contraseña
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Lock, contentDescription = null, tint = ColabAzulPrimario) },
+                    label = { Text("Cambiar contraseña", fontWeight = FontWeight.Medium) },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        mostrarModalCambiarPassword = true
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
 
-                    ExposedDropdownMenuBox(
-                        expanded = expandedSemana,
-                        onExpandedChange = { expandedSemana = !expandedSemana },
-                        modifier = Modifier.width(150.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = "Semana $semanaSeleccionada",
-                            onValueChange = {},
-                            readOnly = true,
-                            colors = colabTfColors(),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSemana) },
-                            modifier = Modifier.menuAnchor()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = expandedSemana,
-                            onDismissRequest = { expandedSemana = false },
-                            modifier = Modifier.background(Color.White)
+                // Opción: Cerrar Sesión dentro del menú (opcional o mantener arriba)
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                    label = { Text("Cerrar Sesión", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium) },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onLogout()
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+            }
+        }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                containerColor = ColabFondoGrisClaro,
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Panel de Colaborador", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Abrir Menú", tint = ColabTextoOscuro)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.White,
+                            titleContentColor = ColabTextoOscuro
+                        ),
+                        actions = {
+                            IconButton(onClick = { cargarDatosColaborador() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Actualizar", tint = ColabAzulPrimario)
+                            }
+                        }
+                    )
+                },
+                floatingActionButton = {
+                    if (codigoColaborador != "Cargando..." && codigoColaborador != "Error al cargar") {
+                        FloatingActionButton(
+                            onClick = { mostrarModalNuevoRegistro = true },
+                            containerColor = ColabAzulBotonFlotante,
+                            contentColor = Color.White,
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            semanasDisponibles.forEach { sem ->
-                                DropdownMenuItem(
-                                    text = { Text("Semana $sem") },
-                                    onClick = { semanaSeleccionada = sem; expandedSemana = false }
-                                )
+                            Icon(Icons.Default.Add, contentDescription = "Agregar Registro", modifier = Modifier.size(32.dp))
+                        }
+                    }
+                }
+            ) { paddingValues ->
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp)
+                ) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(text = "Colaborador", fontSize = 12.sp, color = ColabTextoGris)
+                            Text(text = nombreColaborador, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ColabTextoOscuro)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = "Mis Registros", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ColabTextoOscuro)
+
+                        ExposedDropdownMenuBox(
+                            expanded = expandedSemana,
+                            onExpandedChange = { expandedSemana = !expandedSemana },
+                            modifier = Modifier.width(150.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = "Semana $semanaSeleccionada",
+                                onValueChange = {},
+                                readOnly = true,
+                                colors = colabTfColors(),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSemana) },
+                                modifier = Modifier.menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = expandedSemana,
+                                onDismissRequest = { expandedSemana = false },
+                                modifier = Modifier.background(Color.White)
+                            ) {
+                                semanasDisponibles.forEach { sem ->
+                                    DropdownMenuItem(
+                                        text = { Text("Semana $sem") },
+                                        onClick = { semanaSeleccionada = sem; expandedSemana = false }
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                Box(modifier = Modifier.fillMaxSize().weight(1f)) {
-                    if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = ColabAzulPrimario)
-                    } else {
-                        val registrosFiltrados = listaTodosMisRegistros.filter { calcularNumeroSemanaColab(it.fecha) == semanaSeleccionada }
-
-                        if (registrosFiltrados.isEmpty()) {
-                            Text(text = "No hay registros para la Semana $semanaSeleccionada.", modifier = Modifier.align(Alignment.Center), color = ColabTextoGris)
+                    Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = ColabAzulPrimario)
                         } else {
-                            LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(registrosFiltrados) { item ->
-                                    Card(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp)
+                            val registrosFiltrados = listaTodosMisRegistros.filter { calcularNumeroSemanaColab(it.fecha) == semanaSeleccionada }
+
+                            if (registrosFiltrados.isEmpty()) {
+                                Text(text = "No hay registros para la Semana $semanaSeleccionada.", modifier = Modifier.align(Alignment.Center), color = ColabTextoGris)
+                            } else {
+                                LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(registrosFiltrados) { item ->
+                                        Card(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                                         ) {
-                                            // --- ENCABEZADO DE LA TARJETA (Fecha y Turno) ---
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp)
                                             ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                    Surface(
-                                                        color = ColabAzulFondoSeleccion,
-                                                        shape = RoundedCornerShape(4.dp)
-                                                    ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        Surface(
+                                                            color = ColabAzulFondoSeleccion,
+                                                            shape = RoundedCornerShape(4.dp)
+                                                        ) {
+                                                            Text(
+                                                                text = item.turno,
+                                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                                fontSize = 12.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = ColabAzulPrimario
+                                                            )
+                                                        }
                                                         Text(
-                                                            text = item.turno,
-                                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                                            fontSize = 12.sp,
+                                                            text = item.fecha,
                                                             fontWeight = FontWeight.Bold,
-                                                            color = ColabAzulPrimario
+                                                            fontSize = 14.sp,
+                                                            color = ColabTextoOscuro
                                                         )
                                                     }
+
                                                     Text(
-                                                        text = item.fecha,
-                                                        fontWeight = FontWeight.Bold,
-                                                        fontSize = 14.sp,
-                                                        color = ColabTextoOscuro
+                                                        text = item.estado,
+                                                        color = ColabAzulPrimario,
+                                                        fontWeight = FontWeight.Medium,
+                                                        fontSize = 12.sp
                                                     )
                                                 }
 
-                                                Text(
-                                                    text = item.estado,
-                                                    color = ColabAzulPrimario,
-                                                    fontWeight = FontWeight.Medium,
-                                                    fontSize = 12.sp
-                                                )
-                                            }
+                                                Spacer(modifier = Modifier.height(12.dp))
+                                                HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
+                                                Spacer(modifier = Modifier.height(10.dp))
 
-                                            Spacer(modifier = Modifier.height(12.dp))
-                                            HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
-                                            Spacer(modifier = Modifier.height(10.dp))
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween
+                                                ) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(text = "ENTRADA", fontSize = 10.sp, color = ColabTextoGris, fontWeight = FontWeight.Bold)
+                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                        Text(text = item.horaEntrada, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ColabTextoOscuro)
+                                                    }
 
-                                            // --- DETALLE DE HORAS (Entrada y Salida ordenadas) ---
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween
-                                            ) {
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(text = "ENTRADA", fontSize = 10.sp, color = ColabTextoGris, fontWeight = FontWeight.Bold)
-                                                    Spacer(modifier = Modifier.height(2.dp))
-                                                    Text(text = item.horaEntrada, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ColabTextoOscuro)
-                                                }
-
-                                                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                                                    Text(text = "SALIDA", fontSize = 10.sp, color = ColabTextoGris, fontWeight = FontWeight.Bold)
-                                                    Spacer(modifier = Modifier.height(2.dp))
-                                                    val horaSalidaTxt = if (item.horaSalida.isEmpty()) "En curso" else item.horaSalida
-                                                    Text(
-                                                        text = horaSalidaTxt,
-                                                        fontSize = 13.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = ColabTextoOscuro,
-                                                        maxLines = 2
-                                                    )
+                                                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                                        Text(text = "SALIDA", fontSize = 10.sp, color = ColabTextoGris, fontWeight = FontWeight.Bold)
+                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                        val horaSalidaTxt = if (item.horaSalida.isEmpty()) "En curso" else item.horaSalida
+                                                        Text(
+                                                            text = horaSalidaTxt,
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = ColabTextoOscuro,
+                                                            maxLines = 2
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -344,20 +394,145 @@ fun ColaboradorScreen(onLogout: () -> Unit) {
                     }
                 }
             }
-        }
 
-        if (mostrarModalNuevoRegistro) {
-            DialogoNuevoRegistroColaborador(
-                codigoColaborador = codigoColaborador,
-                nombreColaborador = nombreColaborador,
-                onDismiss = { mostrarModalNuevoRegistro = false },
-                onGuardadoExitoso = {
-                    mostrarModalNuevoRegistro = false
-                    cargarDatosColaborador()
-                }
-            )
+            if (mostrarModalNuevoRegistro) {
+                DialogoNuevoRegistroColaborador(
+                    codigoColaborador = codigoColaborador,
+                    nombreColaborador = nombreColaborador,
+                    onDismiss = { mostrarModalNuevoRegistro = false },
+                    onGuardadoExitoso = {
+                        mostrarModalNuevoRegistro = false
+                        cargarDatosColaborador()
+                    }
+                )
+            }
+
+            if (mostrarModalCambiarPassword) {
+                DialogoCambiarPassword(
+                    onDismiss = { mostrarModalCambiarPassword = false }
+                )
+            }
         }
     }
+}
+
+@Composable
+fun DialogoCambiarPassword(onDismiss: () -> Unit) {
+    val auth = FirebaseAuth.getInstance()
+    val user = auth.currentUser
+
+    var passwordActual by remember { mutableStateOf("") }
+    var passwordNueva by remember { mutableStateOf("") }
+    var passwordNuevaConfirmar by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    AlertDialog(
+        containerColor = Color.White,
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text("Cambiar Contraseña", color = ColabTextoOscuro) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = passwordActual,
+                    onValueChange = { passwordActual = it },
+                    label = { Text("Contraseña Actual") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = colabTfColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving
+                )
+
+                OutlinedTextField(
+                    value = passwordNueva,
+                    onValueChange = { passwordNueva = it },
+                    label = { Text("Nueva Contraseña") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = colabTfColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving
+                )
+
+                OutlinedTextField(
+                    value = passwordNuevaConfirmar,
+                    onValueChange = { passwordNuevaConfirmar = it },
+                    label = { Text("Confirmar Nueva Contraseña") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = colabTfColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving
+                )
+
+                if (errorMessage.isNotEmpty()) {
+                    Text(text = errorMessage, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (passwordActual.isBlank() || passwordNueva.isBlank() || passwordNuevaConfirmar.isBlank()) {
+                        errorMessage = "Complete todos los campos."
+                        return@Button
+                    }
+                    if (passwordNueva != passwordNuevaConfirmar) {
+                        errorMessage = "Las nuevas contraseñas no coinciden."
+                        return@Button
+                    }
+                    if (passwordNueva.length < 6) {
+                        errorMessage = "La nueva contraseña debe tener al menos 6 caracteres."
+                        return@Button
+                    }
+
+                    isSaving = true
+                    scope.launch {
+                        try {
+                            val email = user?.email
+                            if (email != null) {
+                                // Reautenticar al usuario por seguridad antes de cambiar la clave
+                                val credential = EmailAuthProvider.getCredential(email, passwordActual)
+                                user.reauthenticate(credential).await()
+
+                                // Actualizar la contraseña directamente en Firebase Auth
+                                user.updatePassword(passwordNueva).await()
+
+                                Toast.makeText(context, "Contraseña actualizada exitosamente", Toast.LENGTH_LONG).show()
+                                onDismiss()
+                            } else {
+                                errorMessage = "No se encontró sesión activa."
+                                isSaving = false
+                            }
+                        } catch (e: Exception) {
+                            errorMessage = "Error: Contraseña actual incorrecta o fallo al actualizar."
+                            isSaving = false
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = ColabAzulPrimario),
+                enabled = !isSaving
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Actualizando...", color = Color.White)
+                } else {
+                    Text("Actualizar", color = Color.White)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) {
+                Text("Cancelar", color = ColabTextoGris)
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -10,19 +10,19 @@ class AuthRepository {
 
     suspend fun iniciarSesion(email: String, pass: String): Result<String> {
         return try {
-            val authResult = auth.signInWithEmailAndPassword(email, pass).await()
-            val uid = authResult.user?.uid ?: throw Exception("No se pudo obtener el UID")
+            val authResult = FirebaseAuth.getInstance().signInWithEmailAndPassword(email, pass).await()
+            val uid = authResult.user?.uid ?: throw Exception("Usuario no encontrado")
 
-            val userDoc = db.collection("USUARIOS").document(uid).get().await()
-            if (userDoc.exists() && userDoc.getBoolean("estado") == true) {
-                val rol = userDoc.getString("rol") ?: "COLABORADOR"
-                Result.success(rol)
-            } else {
-                auth.signOut()
-                Result.failure(Exception("Usuario inactivo o no registrado en el sistema."))
-            }
+            // Buscar el rol en Firestore
+            val userDoc = FirebaseFirestore.getInstance().collection("USUARIOS").document(uid).get().await()
+            val rol = userDoc.getString("rol") ?: "COLABORADOR"
+            Result.success(rol)
+        } catch (e: com.google.firebase.auth.FirebaseAuthInvalidUserException) {
+            Result.failure(Exception("El correo electrónico no está registrado."))
+        } catch (e: com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
+            Result.failure(Exception("La contraseña es incorrecta o el formato del correo es inválido."))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception(e.message ?: "Ocurrió un error al iniciar sesión."))
         }
     }
 }

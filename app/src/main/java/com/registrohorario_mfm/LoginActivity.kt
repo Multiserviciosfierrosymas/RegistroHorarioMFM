@@ -98,6 +98,7 @@ fun LoginScreen(
     var recordarCredenciales by remember { mutableStateOf(sharedPreferences.getBoolean("KEY_RECORDAR", false)) }
 
     var isLoading by remember { mutableStateOf(false) }
+    var loginErrorMsg by remember { mutableStateOf<String?>(null) } // <-- NUEVO: Estado para el mensaje de error visual
     val scope = rememberCoroutineScope()
 
     Column(
@@ -126,7 +127,7 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { email = it; loginErrorMsg = null }, // Limpia el error al escribir
             label = { Text("Correo electrónico") },
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Email,
@@ -141,7 +142,7 @@ fun LoginScreen(
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it },
+            onValueChange = { password = it; loginErrorMsg = null }, // Limpia el error al escribir
             label = { Text("Contraseña") },
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
@@ -168,12 +169,24 @@ fun LoginScreen(
             Text(text = "Recordar mis datos", fontSize = 14.sp, color = LoginTextoGris)
         }
 
+        // --- NUEVO: Texto de error en pantalla si las credenciales fallan ---
+        if (!loginErrorMsg.isNullOrEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = loginErrorMsg ?: "",
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
             onClick = {
                 if (email.isNotBlank() && password.isNotBlank()) {
                     isLoading = true
+                    loginErrorMsg = null
 
                     val editor = sharedPreferences.edit()
                     if (recordarCredenciales) {
@@ -191,11 +204,13 @@ fun LoginScreen(
                         resultado.onSuccess { rol ->
                             onLoginSuccess(rol)
                         }.onFailure { error ->
-                            onLoginError("Error: ${error.message}")
+                            val mensajeAmigable = error.message ?: "Ocurrió un error inesperado"
+                            loginErrorMsg = mensajeAmigable // Muestra el error en la interfaz
+                            onLoginError(mensajeAmigable)  // Opcional: Mantiene el Toast si lo deseas
                         }
                     }
                 } else {
-                    onLoginError("Por favor completa todos los campos")
+                    loginErrorMsg = "Por favor completa todos los campos"
                 }
             },
             modifier = Modifier.fillMaxWidth().height(50.dp),

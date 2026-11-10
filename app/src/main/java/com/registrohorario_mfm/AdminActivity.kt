@@ -1,6 +1,5 @@
 package com.registrohorario_mfm
 
-import androidx.compose.material.icons.filled.Refresh
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -22,14 +21,19 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
@@ -232,8 +236,6 @@ fun convertirMillisAFecha(millis: Long): String {
     return sdf.format(Date(millis))
 }
 
-
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminScreen(onLogout: () -> Unit) {
@@ -251,6 +253,9 @@ fun AdminScreen(onLogout: () -> Unit) {
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    var nombreAdministrador by remember { mutableStateOf("Administrador") }
+    var codigoAdministrador by remember { mutableStateOf("") }
+
     var usuarioParaEditar by remember { mutableStateOf<UsuarioItem?>(null) }
     var asistenciaParaEditar by remember { mutableStateOf<AsistenciaConDetalle?>(null) }
     var asistenciaParaEliminarAdmin by remember { mutableStateOf<AsistenciaConDetalle?>(null) }
@@ -258,15 +263,31 @@ fun AdminScreen(onLogout: () -> Unit) {
 
     var mostrarModalNuevoAdmin by remember { mutableStateOf(false) }
     var mostrarModalNuevoColaborador by remember { mutableStateOf(false) }
+    var mostrarModalCambiarPassword by remember { mutableStateOf(false) }
 
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val currentUserId = FirebaseAuth.getInstance().currentUser?.uid
 
     val cargarDatos: () -> Unit = {
         scope.launch {
             try {
                 isLoading = true
                 val db = FirebaseFirestore.getInstance()
+
+                if (currentUserId != null) {
+                    val adminAuthDoc = db.collection("USUARIOS").document(currentUserId).get().await()
+                    if (adminAuthDoc.exists()) {
+                        val nom = adminAuthDoc.getString("nombres") ?: adminAuthDoc.getString("nombre") ?: ""
+                        val ape = adminAuthDoc.getString("apellidos") ?: ""
+                        val cod = adminAuthDoc.getString("codigoColaborador") ?: adminAuthDoc.getString("codColaborador") ?: ""
+                        if (nom.isNotEmpty()) {
+                            nombreAdministrador = "$nom $ape".trim()
+                            codigoAdministrador = cod
+                        }
+                    }
+                }
 
                 val colabsSnapshot = db.collection("COLABORADORES").get().await()
                 val mapaColaboradores = mutableMapOf<String, UsuarioItem>()
@@ -365,7 +386,7 @@ fun AdminScreen(onLogout: () -> Unit) {
                 }
 
                 todosLosGruposAsistencia = gruposList
-                semanasDisponibles = if (semanasSet.isNotEmpty()) semanasSet.sorted() else listOf(44)
+                semanasDisponibles = if (semanasSet.isNotEmpty()) semanasSet.sortedDescending() else listOf(44)
                 if (!semanasDisponibles.contains(semanaSeleccionada)) {
                     semanaSeleccionada = semanasDisponibles.last()
                 }
@@ -382,241 +403,407 @@ fun AdminScreen(onLogout: () -> Unit) {
         cargarDatos()
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            containerColor = FondoGrisClaro,
-            topBar = {
-                TopAppBar(
-                    title = { Text("Panel de Administrador", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.White,
-                        titleContentColor = TextoOscuro
-                    ),
-                    actions = {
-                        IconButton(onClick = { cargarDatos() }) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Actualizar", tint = AzulPrimario)
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet(modifier = Modifier.width(280.dp)) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Text(
+                        text = nombreAdministrador,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = TextoOscuro
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Lock, contentDescription = null, tint = AzulPrimario) },
+                    label = { Text("Cambiar contraseña", fontWeight = FontWeight.Medium) },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        mostrarModalCambiarPassword = true
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                NavigationDrawerItem(
+                    icon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                    label = { Text("Cerrar Sesión", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium) },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        onLogout()
+                    },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+            }
+        }
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Scaffold(
+                containerColor = FondoGrisClaro,
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Panel de Administrador", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Abrir Menú", tint = TextoOscuro)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.White,
+                            titleContentColor = TextoOscuro
+                        ),
+                        actions = {
+                            IconButton(onClick = { cargarDatos() }) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Actualizar", tint = AzulPrimario)
+                            }
                         }
-                        TextButton(onClick = onLogout) {
-                            Text("Cerrar Sesión", color = MaterialTheme.colorScheme.error)
+                    )
+                },
+                floatingActionButton = {
+                    FloatingActionButton(
+                        onClick = {
+                            when (selectedTab) {
+                                0 -> mostrarModalNuevoAdmin = true
+                                1 -> mostrarModalNuevoColaborador = true
+                                2 -> mostrarModalNuevoRegistro = true
+                            }
+                        },
+                        containerColor = AzulBotonFlotante,
+                        contentColor = Color.White,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Agregar", modifier = Modifier.size(32.dp))
+                    }
+                }
+            ) { paddingValues ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                ) {
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = Color.White,
+                        contentColor = AzulPrimario
+                    ) {
+                        tabs.forEachIndexed { index, title ->
+                            Tab(
+                                selected = selectedTab == index,
+                                onClick = { selectedTab = index },
+                                text = {
+                                    Text(
+                                        title,
+                                        fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (selectedTab == index) AzulPrimario else TextoGris
+                                    )
+                                }
+                            )
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = AzulPrimario)
+                        } else if (errorMessage != null) {
+                            Text(
+                                text = errorMessage ?: "",
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        } else {
+                            when (selectedTab) {
+                                0 -> TabAdminView(listaAdmins) { admin -> usuarioParaEditar = admin }
+                                1 -> TabColaboradoresView(listaColaboradores) { colab -> usuarioParaEditar = colab }
+                                2 -> {
+                                    val gruposFiltrados = todosLosGruposAsistencia.mapNotNull { grupo ->
+                                        val regsFiltrados = grupo.registros.filter { calcularNumeroSemanaAdmin(it.fecha) == semanaSeleccionada }
+                                        if (regsFiltrados.isNotEmpty()) {
+                                            grupo.copy(registros = regsFiltrados)
+                                        } else {
+                                            null
+                                        }
+                                    }
+
+                                    TabRegistroAgrupadoConFiltroSemana(
+                                        semanas = semanasDisponibles,
+                                        semanaActual = semanaSeleccionada,
+                                        onSemanaSelected = { semanaSeleccionada = it },
+                                        grupos = gruposFiltrados,
+                                        onRegistroClick = { grupo, reg ->
+                                            asistenciaParaEditar = AsistenciaConDetalle(
+                                                asistencia = reg,
+                                                nombreCompleto = grupo.nombreCompleto,
+                                                cargo = grupo.cargo,
+                                                dni = grupo.dni
+                                            )
+                                        },
+                                        onDeleteRegistro = { grupo, reg ->
+                                            asistenciaParaEliminarAdmin = AsistenciaConDetalle(
+                                                asistencia = reg,
+                                                nombreCompleto = grupo.nombreCompleto,
+                                                cargo = grupo.cargo,
+                                                dni = grupo.dni
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (mostrarModalNuevoRegistro) {
+                DialogoNuevoRegistro(
+                    listaPersonal = listaTodosPersonal,
+                    onDismiss = { mostrarModalNuevoRegistro = false },
+                    onGuardadoExitoso = {
+                        mostrarModalNuevoRegistro = false
+                        cargarDatos()
+                    }
+                )
+            }
+
+            if (mostrarModalNuevoAdmin) {
+                val siguienteCodigoAdmin = generarSiguienteCodigo(listaAdmins, "ADMIN-")
+                DialogoNuevoUsuarioRol(
+                    rolObjetivo = "ADMIN",
+                    codigoGenerado = siguienteCodigoAdmin,
+                    onDismiss = { mostrarModalNuevoAdmin = false },
+                    onGuardadoExitoso = {
+                        mostrarModalNuevoAdmin = false
+                        cargarDatos()
+                    }
+                )
+            }
+
+            if (mostrarModalNuevoColaborador) {
+                val siguienteCodigoColab = generarSiguienteCodigo(listaColaboradores, "COL-")
+                DialogoNuevoUsuarioRol(
+                    rolObjetivo = "COLABORADOR",
+                    codigoGenerado = siguienteCodigoColab,
+                    onDismiss = { mostrarModalNuevoColaborador = false },
+                    onGuardadoExitoso = {
+                        mostrarModalNuevoColaborador = false
+                        cargarDatos()
+                    }
+                )
+            }
+
+            if (mostrarModalCambiarPassword) {
+                DialogoCambiarPasswordAdmin(
+                    onDismiss = { mostrarModalCambiarPassword = false }
+                )
+            }
+
+            if (usuarioParaEditar != null) {
+                DialogoEditarUsuario(
+                    usuario = usuarioParaEditar!!,
+                    onDismiss = { usuarioParaEditar = null },
+                    onActualizadoExitoso = {
+                        usuarioParaEditar = null
+                        cargarDatos()
+                    }
+                )
+            }
+
+            if (asistenciaParaEditar != null) {
+                DialogoEditarAsistenciaAdmin(
+                    detalle = asistenciaParaEditar!!,
+                    onDismiss = { asistenciaParaEditar = null },
+                    onActualizadoExitoso = {
+                        asistenciaParaEditar = null
+                        cargarDatos()
+                    }
+                )
+            }
+
+            if (asistenciaParaEliminarAdmin != null) {
+                val detalle = asistenciaParaEliminarAdmin!!
+                var isDeleting by remember { mutableStateOf(false) }
+
+                AlertDialog(
+                    containerColor = Color.White,
+                    onDismissRequest = { if (!isDeleting) asistenciaParaEliminarAdmin = null },
+                    title = { Text("Confirmar Anulación", color = TextoOscuro) },
+                    text = { Text("¿Deseas anular el registro de ${detalle.nombreCompleto} para la fecha ${detalle.asistencia.fecha}?", color = TextoGris) },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                isDeleting = true
+                                scope.launch {
+                                    try {
+                                        FirebaseFirestore.getInstance()
+                                            .collection("REGISTROS_ASISTENCIA")
+                                            .document(detalle.asistencia.idDoc)
+                                            .update("estado", "ANULADO")
+                                            .await()
+
+                                        NetworkUtils.enviarRegistroASheetAndroid(
+                                            nombreCompleto = detalle.nombreCompleto,
+                                            fecha = detalle.asistencia.fecha,
+                                            turno = detalle.asistencia.turno,
+                                            horaEntrada = detalle.asistencia.horaEntrada,
+                                            horaSalida = detalle.asistencia.horaSalida,
+                                            idRegistro = detalle.asistencia.idDoc,
+                                            estado = "ANULADO"
+                                        )
+                                        asistenciaParaEliminarAdmin = null
+                                        cargarDatos()
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Error al anular: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        isDeleting = false
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            enabled = !isDeleting
+                        ) {
+                            if (isDeleting) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Anulando...", color = Color.White)
+                            } else {
+                                Text("Sí, Anular", color = Color.White)
+                            }
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { asistenciaParaEliminarAdmin = null }, enabled = !isDeleting) {
+                            Text("Cancelar", color = TextoGris)
                         }
                     }
                 )
-            },
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = {
-                        when (selectedTab) {
-                            0 -> mostrarModalNuevoAdmin = true
-                            1 -> mostrarModalNuevoColaborador = true
-                            2 -> mostrarModalNuevoRegistro = true
-                        }
-                    },
-                    containerColor = AzulBotonFlotante,
-                    contentColor = Color.White,
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Agregar", modifier = Modifier.size(32.dp))
-                }
             }
-        ) { paddingValues ->
+        }
+    }
+}
+
+@Composable
+fun DialogoCambiarPasswordAdmin(onDismiss: () -> Unit) {
+    val auth = FirebaseAuth.getInstance()
+    val user = auth.currentUser
+
+    var passwordActual by remember { mutableStateOf("") }
+    var passwordNueva by remember { mutableStateOf("") }
+    var passwordNuevaConfirmar by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf("") }
+    var isSaving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    AlertDialog(
+        containerColor = Color.White,
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text("Cambiar Contraseña", color = TextoOscuro) },
+        text = {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.White,
-                    contentColor = AzulPrimario
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = {
-                                Text(
-                                    title,
-                                    fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (selectedTab == index) AzulPrimario else TextoGris
-                                )
-                            }
-                        )
-                    }
-                }
+                OutlinedTextField(
+                    value = passwordActual,
+                    onValueChange = { passwordActual = it },
+                    label = { Text("Contraseña Actual") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = miTextFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving
+                )
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp)
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = AzulPrimario)
-                    } else if (errorMessage != null) {
-                        Text(
-                            text = errorMessage ?: "",
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.align(Alignment.Center)
-                        )
-                    } else {
-                        when (selectedTab) {
-                            0 -> TabAdminView(listaAdmins) { admin -> usuarioParaEditar = admin }
-                            1 -> TabColaboradoresView(listaColaboradores) { colab -> usuarioParaEditar = colab }
-                            2 -> {
-                                val gruposFiltrados = todosLosGruposAsistencia.mapNotNull { grupo ->
-                                    val regsFiltrados = grupo.registros.filter { calcularNumeroSemanaAdmin(it.fecha) == semanaSeleccionada }
-                                    if (regsFiltrados.isNotEmpty()) {
-                                        grupo.copy(registros = regsFiltrados)
-                                    } else {
-                                        null
-                                    }
-                                }
+                OutlinedTextField(
+                    value = passwordNueva,
+                    onValueChange = { passwordNueva = it },
+                    label = { Text("Nueva Contraseña") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = miTextFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving
+                )
 
-                                TabRegistroAgrupadoConFiltroSemana(
-                                    semanas = semanasDisponibles,
-                                    semanaActual = semanaSeleccionada,
-                                    onSemanaSelected = { semanaSeleccionada = it },
-                                    grupos = gruposFiltrados,
-                                    onRegistroClick = { grupo, reg ->
-                                        asistenciaParaEditar = AsistenciaConDetalle(
-                                            asistencia = reg,
-                                            nombreCompleto = grupo.nombreCompleto,
-                                            cargo = grupo.cargo,
-                                            dni = grupo.dni
-                                        )
-                                    },
-                                    onDeleteRegistro = { grupo, reg ->
-                                        asistenciaParaEliminarAdmin = AsistenciaConDetalle(
-                                            asistencia = reg,
-                                            nombreCompleto = grupo.nombreCompleto,
-                                            cargo = grupo.cargo,
-                                            dni = grupo.dni
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                    }
+                OutlinedTextField(
+                    value = passwordNuevaConfirmar,
+                    onValueChange = { passwordNuevaConfirmar = it },
+                    label = { Text("Confirmar Nueva Contraseña") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = miTextFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving
+                )
+
+                if (errorMessage.isNotEmpty()) {
+                    Text(text = errorMessage, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
                 }
             }
-        }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (passwordActual.isBlank() || passwordNueva.isBlank() || passwordNuevaConfirmar.isBlank()) {
+                        errorMessage = "Complete todos los campos."
+                        return@Button
+                    }
+                    if (passwordNueva != passwordNuevaConfirmar) {
+                        errorMessage = "Las nuevas contraseñas no coinciden."
+                        return@Button
+                    }
+                    if (passwordNueva.length < 6) {
+                        errorMessage = "La nueva contraseña debe tener al menos 6 caracteres."
+                        return@Button
+                    }
 
-        if (mostrarModalNuevoRegistro) {
-            DialogoNuevoRegistro(
-                listaPersonal = listaTodosPersonal,
-                onDismiss = { mostrarModalNuevoRegistro = false },
-                onGuardadoExitoso = {
-                    mostrarModalNuevoRegistro = false
-                    cargarDatos()
-                }
-            )
-        }
+                    isSaving = true
+                    scope.launch {
+                        try {
+                            val email = user?.email
+                            if (email != null) {
+                                val credential = EmailAuthProvider.getCredential(email, passwordActual)
+                                user.reauthenticate(credential).await()
+                                user.updatePassword(passwordNueva).await()
 
-        if (mostrarModalNuevoAdmin) {
-            val siguienteCodigoAdmin = generarSiguienteCodigo(listaAdmins, "ADMIN-")
-            DialogoNuevoUsuarioRol(
-                rolObjetivo = "ADMIN",
-                codigoGenerado = siguienteCodigoAdmin,
-                onDismiss = { mostrarModalNuevoAdmin = false },
-                onGuardadoExitoso = {
-                    mostrarModalNuevoAdmin = false
-                    cargarDatos()
-                }
-            )
-        }
-
-        if (mostrarModalNuevoColaborador) {
-            val siguienteCodigoColab = generarSiguienteCodigo(listaColaboradores, "COL-")
-            DialogoNuevoUsuarioRol(
-                rolObjetivo = "COLABORADOR",
-                codigoGenerado = siguienteCodigoColab,
-                onDismiss = { mostrarModalNuevoColaborador = false },
-                onGuardadoExitoso = {
-                    mostrarModalNuevoColaborador = false
-                    cargarDatos()
-                }
-            )
-        }
-
-        if (usuarioParaEditar != null) {
-            DialogoEditarUsuario(
-                usuario = usuarioParaEditar!!,
-                onDismiss = { usuarioParaEditar = null },
-                onActualizadoExitoso = {
-                    usuarioParaEditar = null
-                    cargarDatos()
-                }
-            )
-        }
-
-        if (asistenciaParaEditar != null) {
-            DialogoEditarAsistenciaAdmin(
-                detalle = asistenciaParaEditar!!,
-                onDismiss = { asistenciaParaEditar = null },
-                onActualizadoExitoso = {
-                    asistenciaParaEditar = null
-                    cargarDatos()
-                }
-            )
-        }
-
-        if (asistenciaParaEliminarAdmin != null) {
-            val detalle = asistenciaParaEliminarAdmin!!
-            var isDeleting by remember { mutableStateOf(false) }
-
-            AlertDialog(
-                containerColor = Color.White,
-                onDismissRequest = { if (!isDeleting) asistenciaParaEliminarAdmin = null },
-                title = { Text("Confirmar Anulación", color = TextoOscuro) },
-                text = { Text("¿Deseas anular el registro de ${detalle.nombreCompleto} para la fecha ${detalle.asistencia.fecha}?", color = TextoGris) },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            isDeleting = true
-                            scope.launch {
-                                try {
-                                    FirebaseFirestore.getInstance()
-                                        .collection("REGISTROS_ASISTENCIA")
-                                        .document(detalle.asistencia.idDoc)
-                                        .update("estado", "ANULADO")
-                                        .await()
-
-                                    NetworkUtils.enviarRegistroASheetAndroid(
-                                        nombreCompleto = detalle.nombreCompleto,
-                                        fecha = detalle.asistencia.fecha,
-                                        turno = detalle.asistencia.turno,
-                                        horaEntrada = detalle.asistencia.horaEntrada,
-                                        horaSalida = detalle.asistencia.horaSalida,
-                                        idRegistro = detalle.asistencia.idDoc,
-                                        estado = "ANULADO"
-                                    )
-                                    asistenciaParaEliminarAdmin = null
-                                    cargarDatos()
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Error al anular: ${e.message}", Toast.LENGTH_SHORT).show()
-                                    isDeleting = false
-                                }
+                                Toast.makeText(context, "Contraseña actualizada exitosamente", Toast.LENGTH_LONG).show()
+                                onDismiss()
+                            } else {
+                                errorMessage = "No se encontró sesión activa."
+                                isSaving = false
                             }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                        enabled = !isDeleting
-                    ) {
-                        if (isDeleting) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Anulando...", color = Color.White)
-                        } else {
-                            Text("Sí, Anular", color = Color.White)
+                        } catch (e: Exception) {
+                            errorMessage = "Error: Contraseña actual incorrecta o fallo al actualizar."
+                            isSaving = false
                         }
                     }
                 },
-                dismissButton = {
-                    TextButton(onClick = { asistenciaParaEliminarAdmin = null }, enabled = !isDeleting) {
-                        Text("Cancelar", color = TextoGris)
-                    }
+                colors = ButtonDefaults.buttonColors(containerColor = AzulPrimario),
+                enabled = !isSaving
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Actualizando...", color = Color.White)
+                } else {
+                    Text("Actualizar", color = Color.White)
                 }
-            )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) {
+                Text("Cancelar", color = TextoGris)
+            }
         }
-    }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -830,11 +1017,9 @@ fun DialogoNuevoRegistro(
                         try {
                             val db = FirebaseFirestore.getInstance()
 
-                            // Lógica de validación para turnos largos/cruzados
                             val esTurnoDobleOCruzoLargo = (turnoSeleccionado == "NOCHE" && fechaEntrada != fechaSalida && (ampmSalida == "PM" || (ampmSalida == "AM" && horaSalidaH.toInt() >= 8)))
 
                             if (esTurnoDobleOCruzoLargo) {
-                                // --- REGISTRO 1: TRAMO NOCTURNO (Hasta las 08:00 AM del día de salida) ---
                                 val horaCorteNoche = "08:00 AM"
                                 val textoSalidaNoche = "$horaCorteNoche (Salida el $fechaSalida)"
 
@@ -857,7 +1042,6 @@ fun DialogoNuevoRegistro(
                                     estado = "ACTIVO"
                                 )
 
-                                // --- REGISTRO 2: TRAMO DIURNO (Desde las 08:00 AM hasta la hora final) ---
                                 val horaInicioDia = "08:00 AM"
                                 val textoSalidaFinal = "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
 
@@ -881,7 +1065,6 @@ fun DialogoNuevoRegistro(
                                 )
 
                             } else {
-                                // --- REGISTRO NORMAL ---
                                 val fechaRegistroFinal = fechaEntrada.trim()
 
                                 val textoHoraSalidaCompleta = if (turnoSeleccionado == "DIA") {
@@ -934,48 +1117,72 @@ fun DialogoNuevoRegistro(
     )
 
     if (expandedFechaEntrada) {
-        DatePickerDialog(
-            onDismissRequest = { expandedFechaEntrada = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerEntrada.selectedDateMillis?.let {
-                        fechaEntrada = convertirMillisAFecha(it)
-                    }
-                    expandedFechaEntrada = false
-                }) {
-                    Text("Aceptar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { expandedFechaEntrada = false }) {
-                    Text("Cancelar")
-                }
-            }
+        MaterialTheme(
+            colorScheme = MaterialTheme.colorScheme.copy(
+                surface = Color.White,
+                background = Color.White,
+                surfaceContainerHigh = Color.White,
+                primary = AzulPrimario,
+                onPrimary = Color.White,
+                primaryContainer = AzulPrimario,
+                onPrimaryContainer = Color.White
+            )
         ) {
-            DatePicker(state = datePickerEntrada)
+            DatePickerDialog(
+                onDismissRequest = { expandedFechaEntrada = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerEntrada.selectedDateMillis?.let {
+                            fechaEntrada = convertirMillisAFecha(it)
+                        }
+                        expandedFechaEntrada = false
+                    }) {
+                        Text("Aceptar", color = AzulPrimario)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { expandedFechaEntrada = false }) {
+                        Text("Cancelar", color = TextoGris)
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerEntrada)
+            }
         }
     }
 
     if (expandedFechaSalida) {
-        DatePickerDialog(
-            onDismissRequest = { expandedFechaSalida = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerSalida.selectedDateMillis?.let {
-                        fechaSalida = convertirMillisAFecha(it)
-                    }
-                    expandedFechaSalida = false
-                }) {
-                    Text("Aceptar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { expandedFechaSalida = false }) {
-                    Text("Cancelar")
-                }
-            }
+        MaterialTheme(
+            colorScheme = MaterialTheme.colorScheme.copy(
+                surface = Color.White,
+                background = Color.White,
+                surfaceContainerHigh = Color.White,
+                primary = AzulPrimario,
+                onPrimary = Color.White,
+                primaryContainer = AzulPrimario,
+                onPrimaryContainer = Color.White
+            )
         ) {
-            DatePicker(state = datePickerSalida)
+            DatePickerDialog(
+                onDismissRequest = { expandedFechaSalida = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerSalida.selectedDateMillis?.let {
+                            fechaSalida = convertirMillisAFecha(it)
+                        }
+                        expandedFechaSalida = false
+                    }) {
+                        Text("Aceptar", color = AzulPrimario)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { expandedFechaSalida = false }) {
+                        Text("Cancelar", color = TextoGris)
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerSalida)
+            }
         }
     }
 }
@@ -1295,7 +1502,6 @@ fun DialogoEditarAsistenciaAdmin(
                         try {
                             val db = FirebaseFirestore.getInstance()
 
-                            // --- EDICIÓN DEL DOCUMENTO SELECCIONADO ---
                             val textoHoraSalidaCompleta =
                                 "$horaSalidaH:$horaSalidaM $ampmSalida (Salida el $fechaSalida)"
 
@@ -1310,13 +1516,11 @@ fun DialogoEditarAsistenciaAdmin(
                                 "estado" to estadoRegistro
                             )
 
-// Actualizar únicamente el documento seleccionado en Firebase.
                             db.collection("REGISTROS_ASISTENCIA")
                                 .document(registro.idDoc)
                                 .update(cambios)
                                 .await()
 
-// Actualizar la fila correspondiente en Google Sheets usando el mismo ID.
                             NetworkUtils.enviarRegistroASheetAndroid(
                                 nombreCompleto = detalle.nombreCompleto,
                                 fecha = fechaEntrada.trim(),
@@ -1354,48 +1558,72 @@ fun DialogoEditarAsistenciaAdmin(
     )
 
     if (expandedFechaEntrada) {
-        DatePickerDialog(
-            onDismissRequest = { expandedFechaEntrada = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerEntrada.selectedDateMillis?.let {
-                        fechaEntrada = convertirMillisAFecha(it)
-                    }
-                    expandedFechaEntrada = false
-                }) {
-                    Text("Aceptar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { expandedFechaEntrada = false }) {
-                    Text("Cancelar")
-                }
-            }
+        MaterialTheme(
+            colorScheme = MaterialTheme.colorScheme.copy(
+                surface = Color.White,
+                background = Color.White,
+                surfaceContainerHigh = Color.White,
+                primary = AzulPrimario,
+                onPrimary = Color.White,
+                primaryContainer = AzulPrimario,
+                onPrimaryContainer = Color.White
+            )
         ) {
-            DatePicker(state = datePickerEntrada)
+            DatePickerDialog(
+                onDismissRequest = { expandedFechaEntrada = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerEntrada.selectedDateMillis?.let {
+                            fechaEntrada = convertirMillisAFecha(it)
+                        }
+                        expandedFechaEntrada = false
+                    }) {
+                        Text("Aceptar", color = AzulPrimario)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { expandedFechaEntrada = false }) {
+                        Text("Cancelar", color = TextoGris)
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerEntrada)
+            }
         }
     }
 
     if (expandedFechaSalida) {
-        DatePickerDialog(
-            onDismissRequest = { expandedFechaSalida = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerSalida.selectedDateMillis?.let {
-                        fechaSalida = convertirMillisAFecha(it)
-                    }
-                    expandedFechaSalida = false
-                }) {
-                    Text("Aceptar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { expandedFechaSalida = false }) {
-                    Text("Cancelar")
-                }
-            }
+        MaterialTheme(
+            colorScheme = MaterialTheme.colorScheme.copy(
+                surface = Color.White,
+                background = Color.White,
+                surfaceContainerHigh = Color.White,
+                primary = AzulPrimario,
+                onPrimary = Color.White,
+                primaryContainer = AzulPrimario,
+                onPrimaryContainer = Color.White
+            )
         ) {
-            DatePicker(state = datePickerSalida)
+            DatePickerDialog(
+                onDismissRequest = { expandedFechaSalida = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerSalida.selectedDateMillis?.let {
+                            fechaSalida = convertirMillisAFecha(it)
+                        }
+                        expandedFechaSalida = false
+                    }) {
+                        Text("Aceptar", color = AzulPrimario)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { expandedFechaSalida = false }) {
+                        Text("Cancelar", color = TextoGris)
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerSalida)
+            }
         }
     }
 }
@@ -1570,7 +1798,6 @@ fun ItemRegistro(
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            // --- ENCABEZADO (Turno y Fecha) ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1602,7 +1829,6 @@ fun ItemRegistro(
             HorizontalDivider(color = Color(0xFFEEEEEE), thickness = 1.dp)
             Spacer(modifier = Modifier.height(10.dp))
 
-            // --- DETALLE DE HORAS (Entrada y Salida en columnas ordenadas) ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1628,7 +1854,6 @@ fun ItemRegistro(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // --- BOTONES DE ACCIÓN (Editar y Eliminar) ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
