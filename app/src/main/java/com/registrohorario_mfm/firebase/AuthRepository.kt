@@ -10,13 +10,32 @@ class AuthRepository {
 
     suspend fun iniciarSesion(email: String, pass: String): Result<String> {
         return try {
-            val authResult = FirebaseAuth.getInstance().signInWithEmailAndPassword(email, pass).await()
-            val uid = authResult.user?.uid ?: throw Exception("Usuario no encontrado")
+            // 1. Iniciar sesión en Firebase Auth
+            val authResult = auth.signInWithEmailAndPassword(email, pass).await()
+            val user = authResult.user ?: throw Exception("Usuario no encontrado")
+            val userEmail = user.email ?: email
 
-            // Buscar el rol en Firestore
-            val userDoc = FirebaseFirestore.getInstance().collection("USUARIOS").document(uid).get().await()
-            val rol = userDoc.getString("rol") ?: "COLABORADOR"
+            // 2. Buscar el rol en Firestore consultando por el correo electrónico
+            // (Soporta tanto el campo 'correo' como 'email')
+            var usuariosQuery = db.collection("USUARIOS")
+                .whereEqualTo("correo", userEmail)
+                .get()
+                .await()
+
+            var userDoc = if (!usuariosQuery.isEmpty) {
+                usuariosQuery.documents[0]
+            } else {
+                db.collection("USUARIOS")
+                    .whereEqualTo("email", userEmail)
+                    .get()
+                    .await()
+                    .documents
+                    .firstOrNull()
+            }
+
+            val rol = userDoc?.getString("rol")?.uppercase() ?: "COLABORADOR"
             Result.success(rol)
+
         } catch (e: com.google.firebase.auth.FirebaseAuthInvalidUserException) {
             Result.failure(Exception("El correo electrónico no está registrado."))
         } catch (e: com.google.firebase.auth.FirebaseAuthInvalidCredentialsException) {
