@@ -93,6 +93,126 @@ fun CampoFechaAdmin(
     }
 }
 
+// --- SELECTOR HORA Y MINUTO (MINUTO A MINUTO) ---
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SelectorHoraMinuto(
+    horaSeleccionada: String,
+    minutoSeleccionado: String,
+    ampmSeleccionado: String,
+    enabled: Boolean = true,
+    onHoraChange: (String) -> Unit,
+    onMinutoChange: (String) -> Unit,
+    onAmPmChange: (String) -> Unit
+) {
+    val horasList = remember { (1..12).map { String.format("%02d", it) } }
+    val minutosList = remember { (0..59).map { String.format("%02d", it) } }
+    val ampmList = listOf("AM", "PM")
+
+    var expandedHora by remember { mutableStateOf(false) }
+    var expandedMinuto by remember { mutableStateOf(false) }
+    var expandedAmPm by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Selector de Hora
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedButton(
+                onClick = { if (enabled) expandedHora = true },
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color.LightGray)
+            ) {
+                Text(horaSeleccionada, color = TextoOscuro, fontWeight = FontWeight.SemiBold)
+            }
+            DropdownMenu(
+                expanded = expandedHora,
+                onDismissRequest = { expandedHora = false },
+                modifier = Modifier
+                    .background(Color.White)
+                    .heightIn(max = 200.dp)
+            ) {
+                horasList.forEach { h ->
+                    DropdownMenuItem(
+                        text = { Text(h) },
+                        onClick = {
+                            onHoraChange(h)
+                            expandedHora = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Text(":", color = TextoOscuro, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+
+        // Selector de Minuto (Minuto a Minuto del 00 al 59)
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedButton(
+                onClick = { if (enabled) expandedMinuto = true },
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color.LightGray)
+            ) {
+                Text(minutoSeleccionado, color = TextoOscuro, fontWeight = FontWeight.SemiBold)
+            }
+            DropdownMenu(
+                expanded = expandedMinuto,
+                onDismissRequest = { expandedMinuto = false },
+                modifier = Modifier
+                    .background(Color.White)
+                    .heightIn(max = 200.dp)
+            ) {
+                minutosList.forEach { m ->
+                    DropdownMenuItem(
+                        text = { Text(m) },
+                        onClick = {
+                            onMinutoChange(m)
+                            expandedMinuto = false
+                        }
+                    )
+                }
+            }
+        }
+
+        // Selector AM / PM
+        Box(modifier = Modifier.weight(1.2f)) {
+            OutlinedButton(
+                onClick = { if (enabled) expandedAmPm = true },
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = AzulFondoSeleccion),
+                border = BorderStroke(1.dp, AzulPrimario)
+            ) {
+                Text(ampmSeleccionado, color = AzulPrimario, fontWeight = FontWeight.Bold)
+            }
+            DropdownMenu(
+                expanded = expandedAmPm,
+                onDismissRequest = { expandedAmPm = false },
+                modifier = Modifier.background(Color.White)
+            ) {
+                ampmList.forEach { ap ->
+                    DropdownMenuItem(
+                        text = { Text(ap, fontWeight = FontWeight.Bold, color = AzulPrimario) },
+                        onClick = {
+                            onAmPmChange(ap)
+                            expandedAmPm = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Keep
 data class UsuarioItem(
     val idDoc: String = "",
@@ -844,15 +964,15 @@ fun DialogoNuevoRegistro(
         )
     }
 
+    // Estados para hora de entrada
     var horaEntradaH by remember { mutableStateOf("08") }
     var horaEntradaM by remember { mutableStateOf("00") }
     var ampmEntrada by remember { mutableStateOf("AM") }
-    var expandedAmPmEntrada by remember { mutableStateOf(false) }
 
+    // Estados para hora de salida
     var horaSalidaH by remember { mutableStateOf("06") }
     var horaSalidaM by remember { mutableStateOf("00") }
     var ampmSalida by remember { mutableStateOf("PM") }
-    var expandedAmPmSalida by remember { mutableStateOf(false) }
 
     var errorMessage by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
@@ -945,18 +1065,15 @@ fun DialogoNuevoRegistro(
                 )
 
                 Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = horaEntradaH, onValueChange = { horaEntradaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Text(":", color = TextoOscuro)
-                    OutlinedTextField(value = horaEntradaM, onValueChange = { horaEntradaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Box(modifier = Modifier.weight(1.2f)) {
-                        OutlinedButton(onClick = { expandedAmPmEntrada = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmEntrada, color = AzulPrimario) }
-                        DropdownMenu(expanded = expandedAmPmEntrada, onDismissRequest = { expandedAmPmEntrada = false }, modifier = Modifier.background(Color.White)) {
-                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmEntrada = "AM"; expandedAmPmEntrada = false })
-                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmEntrada = "PM"; expandedAmPmEntrada = false })
-                        }
-                    }
-                }
+                SelectorHoraMinuto(
+                    horaSeleccionada = horaEntradaH,
+                    minutoSeleccionado = horaEntradaM,
+                    ampmSeleccionado = ampmEntrada,
+                    enabled = !isSaving,
+                    onHoraChange = { horaEntradaH = it },
+                    onMinutoChange = { horaEntradaM = it },
+                    onAmPmChange = { ampmEntrada = it }
+                )
 
                 if (turnoSeleccionado == "NOCHE") {
                     Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
@@ -970,18 +1087,15 @@ fun DialogoNuevoRegistro(
                 }
 
                 Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = horaSalidaH, onValueChange = { horaSalidaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Text(":", color = TextoOscuro)
-                    OutlinedTextField(value = horaSalidaM, onValueChange = { horaSalidaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Box(modifier = Modifier.weight(1.2f)) {
-                        OutlinedButton(onClick = { expandedAmPmSalida = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmSalida, color = AzulPrimario) }
-                        DropdownMenu(expanded = expandedAmPmSalida, onDismissRequest = { expandedAmPmSalida = false }, modifier = Modifier.background(Color.White)) {
-                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmSalida = "AM"; expandedAmPmSalida = false })
-                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmSalida = "PM"; expandedAmPmSalida = false })
-                        }
-                    }
-                }
+                SelectorHoraMinuto(
+                    horaSeleccionada = horaSalidaH,
+                    minutoSeleccionado = horaSalidaM,
+                    ampmSeleccionado = ampmSalida,
+                    enabled = !isSaving,
+                    onHoraChange = { horaSalidaH = it },
+                    onMinutoChange = { horaSalidaM = it },
+                    onAmPmChange = { ampmSalida = it }
+                )
 
                 if (errorMessage.isNotEmpty()) {
                     Text(text = errorMessage, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
@@ -1320,32 +1434,16 @@ fun DialogoEditarAsistenciaAdmin(
     val partesEntrada = registro.horaEntrada.split(" ")
     val horaEntradaArr = partesEntrada.getOrNull(0)?.split(":") ?: listOf("08", "00")
 
-    var horaEntradaH by remember {
-        mutableStateOf(horaEntradaArr.getOrNull(0) ?: "08")
-    }
-    var horaEntradaM by remember {
-        mutableStateOf(horaEntradaArr.getOrNull(1) ?: "00")
-    }
-    var ampmEntrada by remember {
-        mutableStateOf(partesEntrada.getOrNull(1) ?: "AM")
-    }
-    var expandedAmPmEntrada by remember {
-        mutableStateOf(false)
-    }
+    var horaEntradaH by remember { mutableStateOf(horaEntradaArr.getOrNull(0) ?: "08") }
+    var horaEntradaM by remember { mutableStateOf(horaEntradaArr.getOrNull(1) ?: "00") }
+    var ampmEntrada by remember { mutableStateOf(partesEntrada.getOrNull(1) ?: "AM") }
 
     val partesSalidaClean = registro.horaSalida.split(" ")
     val horaSalidaArr = partesSalidaClean.getOrNull(0)?.split(":") ?: listOf("05", "00")
 
-    var horaSalidaH by remember {
-        mutableStateOf(horaSalidaArr.getOrNull(0) ?: "05")
-    }
-    var horaSalidaM by remember {
-        mutableStateOf(horaSalidaArr.getOrNull(1) ?: "00")
-    }
-    var ampmSalida by remember {
-        mutableStateOf(partesSalidaClean.getOrNull(1) ?: "PM")
-    }
-    var expandedAmPmSalida by remember { mutableStateOf(false) }
+    var horaSalidaH by remember { mutableStateOf(horaSalidaArr.getOrNull(0) ?: "05") }
+    var horaSalidaM by remember { mutableStateOf(horaSalidaArr.getOrNull(1) ?: "00") }
+    var ampmSalida by remember { mutableStateOf(partesSalidaClean.getOrNull(1) ?: "PM") }
 
     var estadoRegistro by remember { mutableStateOf(if (registro.estado.isNotBlank()) registro.estado else "COMPLETO") }
     var expandedEstado by remember { mutableStateOf(false) }
@@ -1425,18 +1523,15 @@ fun DialogoEditarAsistenciaAdmin(
                 )
 
                 Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = horaEntradaH, onValueChange = { horaEntradaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Text(":", color = TextoOscuro)
-                    OutlinedTextField(value = horaEntradaM, onValueChange = { horaEntradaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Box(modifier = Modifier.weight(1.2f)) {
-                        OutlinedButton(onClick = { expandedAmPmEntrada = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmEntrada, color = AzulPrimario) }
-                        DropdownMenu(expanded = expandedAmPmEntrada, onDismissRequest = { expandedAmPmEntrada = false }, modifier = Modifier.background(Color.White)) {
-                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmEntrada = "AM"; expandedAmPmEntrada = false })
-                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmEntrada = "PM"; expandedAmPmEntrada = false })
-                        }
-                    }
-                }
+                SelectorHoraMinuto(
+                    horaSeleccionada = horaEntradaH,
+                    minutoSeleccionado = horaEntradaM,
+                    ampmSeleccionado = ampmEntrada,
+                    enabled = !isSaving,
+                    onHoraChange = { horaEntradaH = it },
+                    onMinutoChange = { horaEntradaM = it },
+                    onAmPmChange = { ampmEntrada = it }
+                )
 
                 Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
                 CampoFechaAdmin(
@@ -1448,18 +1543,15 @@ fun DialogoEditarAsistenciaAdmin(
                 )
 
                 Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = horaSalidaH, onValueChange = { horaSalidaH = it }, label = { Text("HH") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Text(":", color = TextoOscuro)
-                    OutlinedTextField(value = horaSalidaM, onValueChange = { horaSalidaM = it }, label = { Text("MM") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Box(modifier = Modifier.weight(1.2f)) {
-                        OutlinedButton(onClick = { expandedAmPmSalida = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmSalida, color = AzulPrimario) }
-                        DropdownMenu(expanded = expandedAmPmSalida, onDismissRequest = { expandedAmPmSalida = false }, modifier = Modifier.background(Color.White)) {
-                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmSalida = "AM"; expandedAmPmSalida = false })
-                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmSalida = "PM"; expandedAmPmSalida = false })
-                        }
-                    }
-                }
+                SelectorHoraMinuto(
+                    horaSeleccionada = horaSalidaH,
+                    minutoSeleccionado = horaSalidaM,
+                    ampmSeleccionado = ampmSalida,
+                    enabled = !isSaving,
+                    onHoraChange = { horaSalidaH = it },
+                    onMinutoChange = { horaSalidaM = it },
+                    onAmPmChange = { ampmSalida = it }
+                )
 
                 Text("Estado:", style = MaterialTheme.typography.bodyMedium, color = TextoGris)
                 ExposedDropdownMenuBox(

@@ -53,6 +53,125 @@ private fun colabTfColors() = OutlinedTextFieldDefaults.colors(
     unfocusedLabelColor = ColabTextoGris
 )
 
+// --- SELECTOR HORA Y MINUTO (MINUTO A MINUTO) PARA COLABORADOR ---
+@Composable
+fun SelectorColabHoraMinuto(
+    horaSeleccionada: String,
+    minutoSeleccionado: String,
+    ampmSeleccionado: String,
+    enabled: Boolean = true,
+    onHoraChange: (String) -> Unit,
+    onMinutoChange: (String) -> Unit,
+    onAmPmChange: (String) -> Unit
+) {
+    val horasList = remember { (1..12).map { String.format("%02d", it) } }
+    val minutosList = remember { (0..59).map { String.format("%02d", it) } }
+    val ampmList = listOf("AM", "PM")
+
+    var expandedHora by remember { mutableStateOf(false) }
+    var expandedMinuto by remember { mutableStateOf(false) }
+    var expandedAmPm by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Selector de Hora
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedButton(
+                onClick = { if (enabled) expandedHora = true },
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color.LightGray)
+            ) {
+                Text(horaSeleccionada, color = ColabTextoOscuro, fontWeight = FontWeight.SemiBold)
+            }
+            DropdownMenu(
+                expanded = expandedHora,
+                onDismissRequest = { expandedHora = false },
+                modifier = Modifier
+                    .background(Color.White)
+                    .heightIn(max = 200.dp)
+            ) {
+                horasList.forEach { h ->
+                    DropdownMenuItem(
+                        text = { Text(h) },
+                        onClick = {
+                            onHoraChange(h)
+                            expandedHora = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Text(":", color = ColabTextoOscuro, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+
+        // Selector de Minuto (Minuto a Minuto del 00 al 59)
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedButton(
+                onClick = { if (enabled) expandedMinuto = true },
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color.LightGray)
+            ) {
+                Text(minutoSeleccionado, color = ColabTextoOscuro, fontWeight = FontWeight.SemiBold)
+            }
+            DropdownMenu(
+                expanded = expandedMinuto,
+                onDismissRequest = { expandedMinuto = false },
+                modifier = Modifier
+                    .background(Color.White)
+                    .heightIn(max = 200.dp)
+            ) {
+                minutosList.forEach { m ->
+                    DropdownMenuItem(
+                        text = { Text(m) },
+                        onClick = {
+                            onMinutoChange(m)
+                            expandedMinuto = false
+                        }
+                    )
+                }
+            }
+        }
+
+        // Selector AM / PM
+        Box(modifier = Modifier.weight(1.2f)) {
+            OutlinedButton(
+                onClick = { if (enabled) expandedAmPm = true },
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(4.dp),
+                colors = ButtonDefaults.outlinedButtonColors(containerColor = ColabAzulFondoSeleccion),
+                border = BorderStroke(1.dp, ColabAzulPrimario)
+            ) {
+                Text(ampmSeleccionado, color = ColabAzulPrimario, fontWeight = FontWeight.Bold)
+            }
+            DropdownMenu(
+                expanded = expandedAmPm,
+                onDismissRequest = { expandedAmPm = false },
+                modifier = Modifier.background(Color.White)
+            ) {
+                ampmList.forEach { ap ->
+                    DropdownMenuItem(
+                        text = { Text(ap, fontWeight = FontWeight.Bold, color = ColabAzulPrimario) },
+                        onClick = {
+                            onAmPmChange(ap)
+                            expandedAmPm = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Keep
 data class AsistenciaColab(
     val idDoc: String = "",
@@ -184,7 +303,6 @@ fun ColaboradorScreen(onLogout: () -> Unit) {
         drawerContent = {
             ModalDrawerSheet(modifier = Modifier.width(280.dp)) {
                 Spacer(modifier = Modifier.height(24.dp))
-                // Cabecera del Menú Lateral
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     Text(text = nombreColaborador, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = ColabTextoOscuro)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -193,7 +311,6 @@ fun ColaboradorScreen(onLogout: () -> Unit) {
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Opción: Cambiar Contraseña
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Lock, contentDescription = null, tint = ColabAzulPrimario) },
                     label = { Text("Cambiar contraseña", fontWeight = FontWeight.Medium) },
@@ -205,7 +322,6 @@ fun ColaboradorScreen(onLogout: () -> Unit) {
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                 )
 
-                // Opción: Cerrar Sesión dentro del menú (opcional o mantener arriba)
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                     label = { Text("Cerrar Sesión", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium) },
@@ -496,11 +612,8 @@ fun DialogoCambiarPassword(onDismiss: () -> Unit) {
                         try {
                             val email = user?.email
                             if (email != null) {
-                                // Reautenticar al usuario por seguridad antes de cambiar la clave
                                 val credential = EmailAuthProvider.getCredential(email, passwordActual)
                                 user.reauthenticate(credential).await()
-
-                                // Actualizar la contraseña directamente en Firebase Auth
                                 user.updatePassword(passwordNueva).await()
 
                                 Toast.makeText(context, "Contraseña actualizada exitosamente", Toast.LENGTH_LONG).show()
@@ -560,15 +673,15 @@ fun DialogoNuevoRegistroColaborador(
     var expandedFechaEntrada by remember { mutableStateOf(false) }
     var expandedFechaSalida by remember { mutableStateOf(false) }
 
+    // Estados para hora de entrada mediante selectores minuto a minuto
     var horaEntradaH by remember { mutableStateOf("08") }
     var horaEntradaM by remember { mutableStateOf("00") }
     var ampmEntrada by remember { mutableStateOf("AM") }
-    var expandedAmPmEntrada by remember { mutableStateOf(false) }
 
+    // Estados para hora de salida mediante selectores minuto a minuto
     var horaSalidaH by remember { mutableStateOf("06") }
     var horaSalidaM by remember { mutableStateOf("00") }
     var ampmSalida by remember { mutableStateOf("PM") }
-    var expandedAmPmSalida by remember { mutableStateOf(false) }
 
     var errorMessage by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
@@ -655,18 +768,15 @@ fun DialogoNuevoRegistroColaborador(
                 }
 
                 Text("Hora de Entrada:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = horaEntradaH, onValueChange = { horaEntradaH = it }, label = { Text("HH") }, colors = colabTfColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Text(":", color = ColabTextoOscuro)
-                    OutlinedTextField(value = horaEntradaM, onValueChange = { horaEntradaM = it }, label = { Text("MM") }, colors = colabTfColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Box(modifier = Modifier.weight(1.2f)) {
-                        OutlinedButton(onClick = { expandedAmPmEntrada = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmEntrada, color = ColabAzulPrimario) }
-                        DropdownMenu(expanded = expandedAmPmEntrada, onDismissRequest = { expandedAmPmEntrada = false }, modifier = Modifier.background(Color.White)) {
-                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmEntrada = "AM"; expandedAmPmEntrada = false })
-                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmEntrada = "PM"; expandedAmPmEntrada = false })
-                        }
-                    }
-                }
+                SelectorColabHoraMinuto(
+                    horaSeleccionada = horaEntradaH,
+                    minutoSeleccionado = horaEntradaM,
+                    ampmSeleccionado = ampmEntrada,
+                    enabled = !isSaving,
+                    onHoraChange = { horaEntradaH = it },
+                    onMinutoChange = { horaEntradaM = it },
+                    onAmPmChange = { ampmEntrada = it }
+                )
 
                 if (turnoSeleccionado == "NOCHE") {
                     Text("Fecha de Salida:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
@@ -720,18 +830,15 @@ fun DialogoNuevoRegistroColaborador(
                 }
 
                 Text("Hora de Salida:", style = MaterialTheme.typography.bodyMedium, color = ColabTextoGris)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = horaSalidaH, onValueChange = { horaSalidaH = it }, label = { Text("HH") }, colors = colabTfColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Text(":", color = ColabTextoOscuro)
-                    OutlinedTextField(value = horaSalidaM, onValueChange = { horaSalidaM = it }, label = { Text("MM") }, colors = colabTfColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    Box(modifier = Modifier.weight(1.2f)) {
-                        OutlinedButton(onClick = { expandedAmPmSalida = true }, enabled = !isSaving, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) { Text(ampmSalida, color = ColabAzulPrimario) }
-                        DropdownMenu(expanded = expandedAmPmSalida, onDismissRequest = { expandedAmPmSalida = false }, modifier = Modifier.background(Color.White)) {
-                            DropdownMenuItem(text = { Text("AM") }, onClick = { ampmSalida = "AM"; expandedAmPmSalida = false })
-                            DropdownMenuItem(text = { Text("PM") }, onClick = { ampmSalida = "PM"; expandedAmPmSalida = false })
-                        }
-                    }
-                }
+                SelectorColabHoraMinuto(
+                    horaSeleccionada = horaSalidaH,
+                    minutoSeleccionado = horaSalidaM,
+                    ampmSeleccionado = ampmSalida,
+                    enabled = !isSaving,
+                    onHoraChange = { horaSalidaH = it },
+                    onMinutoChange = { horaSalidaM = it },
+                    onAmPmChange = { ampmSalida = it }
+                )
 
                 if (errorMessage.isNotEmpty()) {
                     Text(text = errorMessage, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
