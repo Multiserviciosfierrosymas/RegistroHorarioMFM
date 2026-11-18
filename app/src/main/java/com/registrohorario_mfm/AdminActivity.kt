@@ -368,7 +368,10 @@ fun AdminScreen(onLogout: () -> Unit) {
 
     var todosLosGruposAsistencia by remember { mutableStateOf<List<GrupoAsistenciaColaborador>>(emptyList()) }
     var semanasDisponibles by remember { mutableStateOf<List<Int>>(emptyList()) }
-    var semanaSeleccionada by remember { mutableStateOf(44) }
+
+    // Calcular la semana actual basada en la fecha del sistema actual
+    val semanaActualGlobal = calcularNumeroSemanaAdmin(SimpleDateFormat("dd/MM/yyyy", Locale("es", "PE")).format(Date()))
+    var semanaSeleccionada by remember { mutableStateOf(semanaActualGlobal) }
 
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -506,9 +509,14 @@ fun AdminScreen(onLogout: () -> Unit) {
                 }
 
                 todosLosGruposAsistencia = gruposList
-                semanasDisponibles = if (semanasSet.isNotEmpty()) semanasSet.sortedDescending() else listOf(44)
+
+                // Actualizar semanas disponibles asegurando que la semana actual esté incluida si existen registros
+                semanasSet.add(semanaActualGlobal)
+                semanasDisponibles = semanasSet.sortedDescending()
+
+                // Si la semana seleccionada actual no está en la lista (por algún cambio raro), se mantiene o se establece la actual
                 if (!semanasDisponibles.contains(semanaSeleccionada)) {
-                    semanaSeleccionada = semanasDisponibles.last()
+                    semanaSeleccionada = semanaActualGlobal
                 }
 
             } catch (e: Exception) {
@@ -964,12 +972,10 @@ fun DialogoNuevoRegistro(
         )
     }
 
-    // Estados para hora de entrada
     var horaEntradaH by remember { mutableStateOf("08") }
     var horaEntradaM by remember { mutableStateOf("00") }
     var ampmEntrada by remember { mutableStateOf("AM") }
 
-    // Estados para hora de salida
     var horaSalidaH by remember { mutableStateOf("06") }
     var horaSalidaM by remember { mutableStateOf("00") }
     var ampmSalida by remember { mutableStateOf("PM") }
