@@ -2,6 +2,8 @@ package com.registrohorario_mfm
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Patterns
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,7 +36,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -309,6 +315,23 @@ fun generarSiguienteCodigo(lista: List<UsuarioItem>, prefijo: String): String {
     return String.format("%s%03d", prefijo, maxNumero + 1)
 }
 
+fun ordenarPersonalPorCorrelativo(lista: List<UsuarioItem>): List<UsuarioItem> {
+    return lista.sortedWith(
+        compareBy<UsuarioItem>(
+            {
+                val codigo = it.codigoColaborador.trim().uppercase(Locale.ROOT)
+                when {
+                    codigo.startsWith("ADMIN-") -> 0
+                    codigo.startsWith("COL-") -> 1
+                    else -> 2
+                }
+            },
+            { it.codigoColaborador.trim().substringAfterLast("-").toIntOrNull() ?: Int.MAX_VALUE },
+            { it.codigoColaborador.trim().uppercase(Locale.ROOT) }
+        )
+    )
+}
+
 fun calcularNumeroSemanaAdmin(fechaStr: String): Int {
     try {
         val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("es", "PE"))
@@ -472,9 +495,9 @@ fun AdminScreen(onLogout: () -> Unit) {
                     }
                 }
 
-                listaAdmins = admins
-                listaColaboradores = colaboradoresList
-                listaTodosPersonal = todos
+                listaAdmins = ordenarPersonalPorCorrelativo(admins)
+                listaColaboradores = ordenarPersonalPorCorrelativo(colaboradoresList)
+                listaTodosPersonal = ordenarPersonalPorCorrelativo(todos)
 
                 val asistenciaSnapshot = db.collection("REGISTROS_ASISTENCIA").get().await()
                 val asistenciasList = asistenciaSnapshot.documents.mapNotNull { doc ->
@@ -2078,7 +2101,27 @@ fun DialogoNuevoUsuarioRol(
 
     var errorMessage by remember { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
+    var uidRegistrado by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val sincronizarSheets: suspend (String) -> Unit = { uid ->
+        NetworkUtils.enviarColaboradorASheetAndroid(
+            uid = uid,
+            codigoColaborador = codigoGenerado,
+            correo = correo.trim().lowercase(Locale.ROOT),
+            nombres = nombres.trim().uppercase(),
+            apellidos = apellidos.trim().uppercase(),
+            dni = dni.trim(),
+            cargo = cargo.trim().uppercase(),
+            jornalDia = jornalDia.toDoubleOrNull() ?: 0.0,
+            jornalNoche = jornalNoche.toDoubleOrNull() ?: 0.0,
+            horasExtras = horasExtras.toDoubleOrNull() ?: 0.0,
+            bcp = bancoCredito.trim(),
+            interbank = interbank.trim(),
+            yapePlin = yapePlin.trim()
+        )
+    }
 
     AlertDialog(
         containerColor = Color.White,
@@ -2098,21 +2141,30 @@ fun DialogoNuevoUsuarioRol(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                OutlinedTextField(value = nombres, onValueChange = { nombres = it }, label = { Text("Nombres") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = apellidos, onValueChange = { apellidos = it }, label = { Text("Apellidos") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = dni, onValueChange = { dni = it }, label = { Text("DNI") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = cargo, onValueChange = { cargo = it }, label = { Text("Cargo") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = correo, onValueChange = { correo = it }, label = { Text("Correo electrónico") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
+                OutlinedTextField(value = nombres, onValueChange = { nombres = it }, label = { Text("Nombres") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving && uidRegistrado == null)
+                OutlinedTextField(value = apellidos, onValueChange = { apellidos = it }, label = { Text("Apellidos") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving && uidRegistrado == null)
+                OutlinedTextField(value = dni, onValueChange = { dni = it }, label = { Text("DNI") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving && uidRegistrado == null)
+                OutlinedTextField(value = cargo, onValueChange = { cargo = it }, label = { Text("Cargo") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving && uidRegistrado == null)
+                OutlinedTextField(value = correo, onValueChange = { correo = it }, label = { Text("Correo electrónico") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving && uidRegistrado == null)
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = jornalDia, onValueChange = { jornalDia = it }, label = { Text("Jornal Día (S/)") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
-                    OutlinedTextField(value = jornalNoche, onValueChange = { jornalNoche = it }, label = { Text("Jornal Noche (S/)") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving)
+                    OutlinedTextField(value = jornalDia, onValueChange = { jornalDia = it }, label = { Text("Jornal Día (S/)") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving && uidRegistrado == null)
+                    OutlinedTextField(value = jornalNoche, onValueChange = { jornalNoche = it }, label = { Text("Jornal Noche (S/)") }, colors = miTextFieldColors(), modifier = Modifier.weight(1f), enabled = !isSaving && uidRegistrado == null)
                 }
 
-                OutlinedTextField(value = horasExtras, onValueChange = { horasExtras = it }, label = { Text("Horas Extras (S/)") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = bancoCredito, onValueChange = { bancoCredito = it }, label = { Text("Cuenta BCP / CCI") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = interbank, onValueChange = { interbank = it }, label = { Text("Cuenta Interbank") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
-                OutlinedTextField(value = yapePlin, onValueChange = { yapePlin = it }, label = { Text("Número Yape/Plin") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving)
+                OutlinedTextField(value = horasExtras, onValueChange = { horasExtras = it }, label = { Text("Horas Extras (S/)") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving && uidRegistrado == null)
+                OutlinedTextField(value = bancoCredito, onValueChange = { bancoCredito = it }, label = { Text("Cuenta BCP / CCI") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving && uidRegistrado == null)
+                OutlinedTextField(value = interbank, onValueChange = { interbank = it }, label = { Text("Cuenta Interbank") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving && uidRegistrado == null)
+                OutlinedTextField(value = yapePlin, onValueChange = { yapePlin = it }, label = { Text("Número Yape/Plin") }, colors = miTextFieldColors(), modifier = Modifier.fillMaxWidth(), enabled = !isSaving && uidRegistrado == null)
+
+                if (uidRegistrado != null) {
+                    Text(
+                        text = "La cuenta y los documentos de Firebase ya están creados. " +
+                                "Solo falta sincronizar Google Sheets.",
+                        color = AzulPrimario,
+                        fontSize = 13.sp
+                    )
+                }
 
                 if (errorMessage.isNotEmpty()) {
                     Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
@@ -2122,21 +2174,108 @@ fun DialogoNuevoUsuarioRol(
         confirmButton = {
             Button(
                 onClick = {
-                    if (nombres.isBlank() || correo.isBlank()) {
+                    // Si Firebase ya se guardó, reintentar SOLO Google Sheets.
+                    val uidPendiente = uidRegistrado
+                    if (uidPendiente != null) {
+                        isSaving = true
+                        errorMessage = ""
+                        scope.launch {
+                            try {
+                                sincronizarSheets(uidPendiente)
+                                Toast.makeText(
+                                    context,
+                                    "Sincronización con Google Sheets completada.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                onGuardadoExitoso()
+                            } catch (e: Exception) {
+                                errorMessage = "Firebase ya guardó el usuario, pero Sheets falló: ${e.message}. " +
+                                        "Presione 'Reintentar Sheets'; no vuelva a crear la cuenta."
+                                isSaving = false
+                            }
+                        }
+                        return@Button
+                    }
+
+                    val correoRegistro = correo.trim().lowercase(Locale.ROOT)
+
+                    if (nombres.isBlank() || correoRegistro.isBlank()) {
                         errorMessage = "Complete los campos obligatorios."
                         return@Button
                     }
+
+                    if (!Patterns.EMAIL_ADDRESS.matcher(correoRegistro).matches()) {
+                        errorMessage = "Ingrese un correo electrónico válido."
+                        return@Button
+                    }
+
                     isSaving = true
+                    errorMessage = ""
+
                     scope.launch {
+                        var authSecundario: FirebaseAuth? = null
+                        var cuentaCreada: FirebaseUser? = null
+                        var guardadoFirebase = false
+                        var etapaRegistro = "Validar códigos en Firestore"
+
                         try {
                             val db = FirebaseFirestore.getInstance()
-                            val nuevoPersonal = hashMapOf(
+
+                            val codigoEnColaboradores = db.collection("COLABORADORES")
+                                .whereEqualTo("codigoColaborador", codigoGenerado)
+                                .limit(1).get().await()
+
+                            val codigoEnUsuarios = db.collection("USUARIOS")
+                                .whereEqualTo("codigoColaborador", codigoGenerado)
+                                .limit(1).get().await()
+
+                            if (!codigoEnColaboradores.isEmpty || !codigoEnUsuarios.isEmpty) {
+                                throw Exception("El código $codigoGenerado ya existe. Actualice la lista.")
+                            }
+
+                            etapaRegistro = "Preparar Authentication secundaria"
+                            val nombreAppRegistro = "MFM_REGISTRO_SECUNDARIO"
+                            val appSecundaria = FirebaseApp.getApps(context).firstOrNull {
+                                it.name == nombreAppRegistro
+                            } ?: FirebaseApp.initializeApp(
+                                context.applicationContext,
+                                FirebaseApp.getInstance().options,
+                                nombreAppRegistro
+                            )
+
+                            val authRegistro = FirebaseAuth.getInstance(appSecundaria)
+                            authSecundario = authRegistro
+                            authRegistro.signOut()
+
+                            etapaRegistro = "Crear cuenta en Firebase Authentication"
+                            val resultado = authRegistro
+                                .createUserWithEmailAndPassword(correoRegistro, "Password123*")
+                                .await()
+                            val usuarioNuevo = resultado.user
+                                ?: throw Exception("Authentication no devolvió el usuario creado.")
+                            cuentaCreada = usuarioNuevo
+                            val uidNuevo = usuarioNuevo.uid
+
+                            val nombreCompleto = "${nombres.trim()} ${apellidos.trim()}"
+                                .trim()
+                                .uppercase(Locale.ROOT)
+
+                            val nuevoUsuario = hashMapOf<String, Any>(
+                                "codigoColaborador" to codigoGenerado,
+                                "correo" to correoRegistro,
+                                "estado" to true,
+                                "nombre" to nombreCompleto,
+                                "rol" to rolObjetivo
+                            )
+
+                            val nuevoPersonal = hashMapOf<String, Any>(
+                                "uid" to uidNuevo,
                                 "codigoColaborador" to codigoGenerado,
                                 "nombres" to nombres.trim().uppercase(),
                                 "apellidos" to apellidos.trim().uppercase(),
                                 "dni" to dni.trim(),
                                 "cargo" to cargo.trim().uppercase(),
-                                "correo" to correo.trim(),
+                                "correo" to correoRegistro,
                                 "rol" to rolObjetivo,
                                 "estado" to true,
                                 "jornalDia" to (jornalDia.toDoubleOrNull() ?: 0.0),
@@ -2146,13 +2285,68 @@ fun DialogoNuevoUsuarioRol(
                                 "interbank" to interbank.trim(),
                                 "yapePlin" to yapePlin.trim()
                             )
-                            db.collection("COLABORADORES").add(nuevoPersonal).await()
-                            db.collection("USUARIOS").add(nuevoPersonal).await()
 
-                            onGuardadoExitoso()
+                            etapaRegistro = "Guardar USUARIOS y COLABORADORES en Firestore"
+                            val lote = db.batch()
+                            lote.set(db.collection("USUARIOS").document(uidNuevo), nuevoUsuario)
+                            lote.set(db.collection("COLABORADORES").document(), nuevoPersonal)
+                            lote.commit().await()
+
+                            guardadoFirebase = true
+                            uidRegistrado = uidNuevo
+
+                            // Importante: un fallo en Sheets NUNCA elimina el registro de Firebase.
+                            etapaRegistro = "Enviar colaborador a Google Sheets"
+                            try {
+                                sincronizarSheets(uidNuevo)
+                                Toast.makeText(
+                                    context,
+                                    "${if (rolObjetivo == "ADMIN") "Administrador" else "Colaborador"} registrado en Firebase y Google Sheets.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                onGuardadoExitoso()
+                            } catch (errorSheet: Exception) {
+                                errorMessage = "El usuario se creó correctamente en Firebase, " +
+                                        "pero falló Google Sheets: ${errorSheet.message}. " +
+                                        "Puede presionar 'Reintentar Sheets' sin volver a registrar la cuenta."
+                                isSaving = false
+                            }
+
                         } catch (e: Exception) {
-                            errorMessage = "Error al guardar: ${e.message}"
+                            Log.e("MFM_REGISTRO", "Fallo en: $etapaRegistro", e)
+                            val codigoFirebase = (e as? FirebaseAuthException)?.errorCode ?: "SIN_CODIGO"
+                            val mensaje = if (e is FirebaseAuthUserCollisionException) {
+                                "Ese correo ya se encuentra registrado en Firebase Authentication."
+                            } else {
+                                e.message ?: "Ocurrió un error al registrar el usuario."
+                            }
+
+                            val cuentaParaRevertir = cuentaCreada
+                            if (cuentaParaRevertir != null && !guardadoFirebase) {
+                                try {
+                                    cuentaParaRevertir.delete().await()
+                                    errorMessage = "Error en $etapaRegistro [$codigoFirebase]: $mensaje. " +
+                                            "La cuenta de Authentication fue revertida."
+                                } catch (errorBorrado: Exception) {
+                                    errorMessage = "Error en $etapaRegistro [$codigoFirebase]: $mensaje. " +
+                                            "La cuenta podría existir en Authentication (UID: ${cuentaParaRevertir.uid}). " +
+                                            "Revísela antes de reintentar. Error: ${errorBorrado.message}"
+                                }
+                            } else {
+                                val conexionInterrumpida = mensaje.contains("Connection reset by peer", ignoreCase = true) ||
+                                        mensaje.contains("I/O error", ignoreCase = true) ||
+                                        mensaje.contains("network", ignoreCase = true)
+
+                                errorMessage = if (conexionInterrumpida) {
+                                    "Error de conexión en $etapaRegistro [$codigoFirebase]: $mensaje. " +
+                                            "Compruebe en Firebase Console si el correo ya se creó antes de reintentar."
+                                } else {
+                                    "Error en $etapaRegistro [$codigoFirebase]: $mensaje"
+                                }
+                            }
                             isSaving = false
+                        } finally {
+                            authSecundario?.signOut()
                         }
                     }
                 },
@@ -2164,12 +2358,12 @@ fun DialogoNuevoUsuarioRol(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Guardando...", color = Color.White)
                 } else {
-                    Text("Guardar", color = Color.White)
+                    Text(if (uidRegistrado != null) "Reintentar Sheets" else "Guardar", color = Color.White)
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Cancelar", color = TextoGris) }
+            TextButton(onClick = onDismiss, enabled = !isSaving) { Text(if (uidRegistrado != null) "Cerrar" else "Cancelar", color = TextoGris) }
         }
     )
 }
